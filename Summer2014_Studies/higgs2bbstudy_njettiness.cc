@@ -19,6 +19,7 @@
 #include "fastjet/contrib/NjettinessPlugin.hh"
 
 //Root headers
+#include "TROOT.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "TVirtualPad.h"
@@ -33,48 +34,49 @@
 #include "TGraphErrors.h"
 #include "TMultiGraph.h"
 #include "TGraphAsymmErrors.h"
+#include "TPaveText.h"
 
 using namespace std;
 using namespace Pythia8;
 using namespace fastjet;
 using namespace fastjet::contrib;
 
-class GeneralERecombiner : public fastjet::JetDefinition::Recombiner {
-public:
-// Constructor to choose value of alpha (defaulted to 1 for normal pT sum)
-  GeneralERecombiner(double delta) : _delta(delta) {}
+// class GeneralERecombiner : public fastjet::JetDefinition::Recombiner {
+// public:
+// // Constructor to choose value of alpha (defaulted to 1 for normal p_{T} sum)
+//   GeneralERecombiner(double delta) : _delta(delta) {}
   
-  std::string description() const {
-   return "General E-scheme recombination";
- }
+//   std::string description() const {
+//    return "General E-scheme recombination";
+//  }
 
- void recombine(const fastjet::PseudoJet & pa, const fastjet::PseudoJet & pb, fastjet::PseudoJet & pab) const {
+//  void recombine(const fastjet::PseudoJet & pa, const fastjet::PseudoJet & pb, fastjet::PseudoJet & pab) const {
 
-  double weighta = pow(pa.perp(), _delta);
-  double weightb = pow(pb.perp(), _delta);
+//   double weighta = pow(pa.perp(), _delta);
+//   double weightb = pow(pb.perp(), _delta);
 
-  double perp_ab = pa.perp() + pb.perp();
-    if (perp_ab != 0.0) { // weights also non-zero...
-      double y_ab = (weighta * pa.rap() + weightb * pb.rap())/(weighta+weightb);
+//   double perp_ab = pa.perp() + pb.perp();
+//     if (perp_ab != 0.0) { // weights also non-zero...
+//       double y_ab = (weighta * pa.rap() + weightb * pb.rap())/(weighta+weightb);
       
-      // take care with periodicity in phi...
-      double phi_a = pa.phi(), phi_b = pb.phi();
-      if (phi_a - phi_b > pi)  phi_b += twopi;
-      if (phi_a - phi_b < -pi) phi_b -= twopi;
-      double phi_ab = (weighta * phi_a + weightb * phi_b)/(weighta+weightb);
+//       // take care with periodicity in phi...
+//       double phi_a = pa.phi(), phi_b = pb.phi();
+//       if (phi_a - phi_b > pi)  phi_b += twopi;
+//       if (phi_a - phi_b < -pi) phi_b -= twopi;
+//       double phi_ab = (weighta * phi_a + weightb * phi_b)/(weighta+weightb);
       
-      pab.reset_PtYPhiM(perp_ab, y_ab, phi_ab);
+//       pab.reset_PtYPhiM(perp_ab, y_ab, phi_ab);
 
-    }
-    else { // weights are zero
-      pab.reset(0.0,0.0,0.0,0.0);
-    }
+//     }
+//     else { // weights are zero
+//       pab.reset(0.0,0.0,0.0,0.0);
+//     }
 
-  }
+//   }
 
-private:
-  double _delta;
-};
+// private:
+//   double _delta;
+// };
 
 
 // Simple class to store Axes along with a name for display
@@ -163,11 +165,36 @@ return median;
 int main(int argc, char* argv[]) {
 
   double epsilon = 0.0001;
-  int nEvents = 100;
+  int nEvents = 1000;
   gStyle->SetOptStat(0);
   // Create the ROOT application environment.
   TApplication theApp("hist", &argc, argv);
+  
+  TStyle *plain  = new TStyle("Plain","plain");
+  plain->SetLegendBorderSize(0);
+  plain->SetLegendFillColor(0);
+  plain->SetTitleFont(132, "a");
+  plain->SetTitleFont(132, "xy");
+  plain->SetLegendFont(132);
+  // plain->SetTextSize(0.05);
+  plain->SetLabelSize(0.04, "x");
+  plain->SetLabelSize(0.04, "y");
+  plain->SetLabelOffset(0.003, "xy");
+  plain->SetTitleSize(0.06, "a");
+  plain->SetTitleSize(0.05, "xy");
+  plain->SetPadLeftMargin(0.12);
+  plain->SetPadBottomMargin(0.12);
+  plain->SetTitleOffset(1.25, "y");
+  plain->SetHistLineWidth(3);
 
+  // plain->SetLegendSize(12);
+  plain->SetTitleBorderSize(0);
+  plain->SetTitleX(0.1f);
+  plain->SetTitleW(0.8f);
+  plain->SetOptStat(0);
+  plain->cd();
+
+  gROOT->SetStyle("plain");
   // Create file on which histograms can be saved.  
   TFile* outFile = new TFile("higgs2bbstudy_allpt.root", "RECREATE");
 
@@ -187,6 +214,7 @@ int main(int argc, char* argv[]) {
   double higgs_efficiencies_2jets[n_betas + 1][n_perps];
   double higgs_efficiencies_3jets[n_betas + 1][n_perps];
   double higgs_efficiencies_32ratio[n_betas + 1][n_perps];
+  double higgs_efficiencies_2jets_combined[n_betas + 1][n_perps];
   double angulardiff_2jets[n_betas + 1][n_perps];
   double angulardiff_width_2jets[n_betas + 1][n_perps];
   double angulardiff_1jet[n_betas + 1][n_perps];
@@ -194,6 +222,8 @@ int main(int argc, char* argv[]) {
   double jet_distance_1jet_median[n_betas + 1][n_perps];
   double jet_distance_1jet_firstquartile[n_betas + 1][n_perps];
   double jet_distance_1jet_thirdquartile[n_betas + 1][n_perps];
+
+  TObjArray jetphi_diff_allpt_allbeta(n_perps*n_betas);
 
   for (int i_perp = 0; i_perp < n_perps; i_perp++) {
 
@@ -225,7 +255,8 @@ int main(int argc, char* argv[]) {
   TH1* akt_jet_eta = new TH1F("akt_jet_eta", "Eta of individual akt jet", 50, -5, 5);
 
   TH1* higgs_invmass_akt = new TH1F("higgs_invmass_akt", "Invariant Mass of Higgs (antikt)", 100, 0, 500);
-  TH1* jet_ptspectrum_akt = new TH1F("jet_ptspectrum_akt", "pT spectrum of jets (antikt)", 100, 0, 500);
+  TH1* higgs_invmass_akt_combined = new TH1F("higgs_invmass_akt_combined", "", 100, 0, 500);
+  TH1* jet_ptspectrum_akt = new TH1F("jet_ptspectrum_akt", "p_{T} spectrum of jets (antikt)", 100, 0, 500);
   TH1* jet_phispectrum_akt = new TH1F("jet_phispectrum_akt", "#phi spectrum of jets (antikt)", 32, 0, 3.2);
   TH1* jet_distance_akt = new TH1F("jet_distance_akt", "Distance between two jets (antikt)", 100, 0, 10.0);
   TH1* jet_distance_diff_akt = new TH1F("jet_distance_diff_akt", "Distance between individual jet and closest of two jets", 60, 0, 3.0);
@@ -245,6 +276,7 @@ int main(int argc, char* argv[]) {
   TObjArray tau1_diff_hists(n_betas);
 
   TObjArray higgs_invmass_njet_hists(n_betas);
+  TObjArray higgs_invmass_njet_combined_hists(n_betas);
   TObjArray jet_ptspectrum_njet_hists(n_betas);
   TObjArray jet_phispectrum_njet_hists(n_betas);
   TObjArray jet_distance_njet_hists(n_betas);
@@ -273,7 +305,8 @@ int main(int argc, char* argv[]) {
     TH1* tau2_diff = new TH1F("tau2_diff", "difference in #tau_{2} jets (akt - njet) (#beta = " + (TString)ss.str() + ")", 100, -200, 200);
 
     TH1* higgs_invmass_njet = new TH1F("higgs_invmass_njet", "Invariant Mass of Higgs (njet, beta = " + (TString)ss.str() + ")", 100, 0, 500);
-    TH1* jet_ptspectrum_njet = new TH1F("jet_ptspectrum_njet", "pT spectrum of jets (njet, beta = " + (TString)ss.str() + ")", 100, 0, 500);
+    TH1* higgs_invmass_njet_combined = new TH1F("higgs_invmass_njet_combined", "Invariant Mass of Higgs (njet, beta = " + (TString)ss.str() + ")", 100, 0, 500);
+    TH1* jet_ptspectrum_njet = new TH1F("jet_ptspectrum_njet", "p_{T} spectrum of jets (njet, beta = " + (TString)ss.str() + ")", 100, 0, 500);
     TH1* jet_phispectrum_njet = new TH1F("jet_phispectrum_njet", "#phi spectrum of jets (njet, beta = " + (TString)ss.str() + ")", 32, 0, 3.2);
     TH1* jet_distance_njet = new TH1F("jet_distance_njet", "Distance between two jets (njet, beta = " + (TString)ss.str() + ")", 100, 0, 10.0);
     TH1* jet_distance_diff_njet = new TH1F("jet_distance_diff_njet", "Distance between individual jet and closest of two jets (njet, beta = " + (TString)ss.str() + ")", 100, 0, 0.5);
@@ -293,6 +326,7 @@ int main(int argc, char* argv[]) {
     tau1_diff_hists.Add(tau1_diff);
 
     higgs_invmass_njet_hists.Add(higgs_invmass_njet);
+    higgs_invmass_njet_combined_hists.Add(higgs_invmass_njet_combined);
     jet_ptspectrum_njet_hists.Add(jet_ptspectrum_njet);
     jet_phispectrum_njet_hists.Add(jet_phispectrum_njet);
     jet_distance_njet_hists.Add(jet_distance_njet);
@@ -307,6 +341,7 @@ int main(int argc, char* argv[]) {
   vector <PseudoJet> fjInputs;
 
   double Rparam = 0.5;
+  double merging_point = 2*125/Rparam;
   Strategy strategy = Best;
   RecombinationScheme recombScheme_akt = E_scheme;
   JetDefinition *jetDef = new JetDefinition(antikt_algorithm, Rparam, recombScheme_akt, strategy);
@@ -338,7 +373,7 @@ int main(int argc, char* argv[]) {
     }
 
     TH2F *event_display = new TH2F("event_display", "Event Display", 60, -5, 5, 60, 0, 6.4);
-  
+
     particle_mass->Fill(pythia.event[iH].m());
 
     for (int i_part = 0; i_part < fjInputs.size(); i_part++) {
@@ -349,10 +384,10 @@ int main(int argc, char* argv[]) {
     vector <PseudoJet> inclusiveJets, sortedJets, centralJets;
     ClusterSequence clustSeq(fjInputs, *jetDef);
 
-    //Extract inclusive jets sorted by pT
+    //Extract inclusive jets sorted by p_{T}
     inclusiveJets = clustSeq.inclusive_jets(0.0);
 
-    // Sort central jets by pT
+    // Sort central jets by p_{T}
     sortedJets = sorted_by_pt(inclusiveJets);
 
     //Cut on jets within eta range
@@ -388,6 +423,12 @@ int main(int argc, char* argv[]) {
     }
     higgs_invmass_akt->Fill(big_jet.m());
 
+    if (hardest_jet[0].perp() > merging_point && (hardest_twojets[0].delta_R(hardest_twojets[1]) > 2*Rparam)) {
+      // higgs_invmass_akt_combined->Fill(hardest_jet[0].m());
+    }
+    else higgs_invmass_akt_combined->Fill(big_jet.m());
+
+
     Selector threejet_selector = SelectorNHardest(3);
     vector<PseudoJet> hardest_threejets = threejet_selector(centralJets);
 
@@ -409,7 +450,7 @@ int main(int argc, char* argv[]) {
 
       TH2F *axes_display = new TH2F("axes_display", "Axes Plot", 300, -5, 5, 300, 0, 6.4);
       TH2F *axes_njet_display = new TH2F("axes_njet_display", "Axes Plot (Njettiness)", 300, -5, 5, 300, 0, 6.4);
-      TH2F *akt_jets_display = new TH2F("akt_jets_display", "Anti-KT Jets", 300, -5, 5, 300, 0, 6.4);
+      TH2F *akt_jets_display = new TH2F("akt_jets_display", "ak_{T} Jets", 300, -5, 5, 300, 0, 6.4);
       TH2F *njet_jets_display = new TH2F("njet_jets_display", "N-jettiness Jets", 300, -5, 5, 300, 0, 6.4);
 
       double beta = betalist[B];
@@ -490,6 +531,7 @@ int main(int argc, char* argv[]) {
 
       PseudoJet big_jet_njet(0,0,0,0);
       TH1* higgs_invmass_njet = (TH1*)higgs_invmass_njet_hists.At(B);
+      TH1* higgs_invmass_njet_combined = (TH1*)higgs_invmass_njet_combined_hists.At(B);
       TH1* jet_ptspectrum_njet = (TH1*)jet_ptspectrum_njet_hists.At(B);
       TH1* jet_phispectrum_njet = (TH1*)jet_phispectrum_njet_hists.At(B);
       TH1* jet_distance_njet = (TH1*)jet_distance_njet_hists.At(B);
@@ -503,7 +545,14 @@ int main(int argc, char* argv[]) {
       jet_phispectrum_njet->Fill(abs(calcDphi(njet_jets_2jets[0], njet_jets_2jets[1])));
       double smaller_distance_njet = (njet_1jet[0].delta_R(njet_jets_2jets[0]) < njet_1jet[0].delta_R(njet_jets_2jets[1])) ? njet_1jet[0].delta_R(njet_jets_2jets[0]) : njet_1jet[0].delta_R(njet_jets_2jets[1]);
       if (smaller_distance_njet > epsilon) jet_distance_diff_njet->Fill(smaller_distance_njet);
+
       higgs_invmass_njet->Fill(big_jet_njet.m());
+
+      if (njet_1jet[0].perp() > merging_point && (njet_jets_2jets[0].delta_R(njet_jets_2jets[1]) > 2*Rparam)) {
+        // higgs_invmass_njet_combined->Fill(njet_1jet[0].m());
+      }
+      else higgs_invmass_njet_combined->Fill(big_jet_njet.m());
+
 
       vector<PseudoJet> exclusive_threejets_start = clustSeq.exclusive_jets(3);
       vector<PseudoJet> exclusive_threejets = findMinAxes(fjInputs, exclusive_threejets_start, 3, beta, Rparam);
@@ -537,58 +586,58 @@ int main(int argc, char* argv[]) {
       threejet_invmass_njet->Fill(big_jet_njet_3jets.m());
       threejet_thirdjet_mass_njet->Fill(third_jet_njet.m());
       threejet_thirdjet_perp_njet->Fill(third_jet_njet.perp());
-    
-      if ((B == 0 || B == 1) && big_jet_njet.m() < 75) {
-      event_display->SetStats(0);
-      axes_display->SetStats(0);
-      axes_njet_display->SetStats(0);
-      akt_jets_display->SetStats(0);
-      njet_jets_display->SetStats(0);
 
-      TCanvas *display = new TCanvas("display", "Event Display", 1093, 700);
-      display->cd();
-      display->SetFixedAspectRatio();
-      event_display->GetXaxis()->SetTitle("#eta");
-      event_display->GetYaxis()->SetTitle("#phi");
-      event_display->SetFillColor(kBlack);
-      event_display->SetLineColor(kBlack);
-      event_display->SetLineWidth(1);
-      event_display->Draw("box");
+      // if ((B == 0 || B == 1) && big_jet_njet.m() < 75) {
+      // event_display->SetStats(0);
+      // axes_display->SetStats(0);
+      // axes_njet_display->SetStats(0);
+      // akt_jets_display->SetStats(0);
+      // njet_jets_display->SetStats(0);
 
-      for (int a = 0; a < hardest_twojets.size(); a++) {
-        axes_display->Fill(hardest_twojets[a].eta(), hardest_twojets[a].phi());
-        vector<PseudoJet> constituents = hardest_twojets[a].constituents();
-        for (int i_const = 0; i_const < constituents.size(); i_const++) {
-          akt_jets_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-        }          
-      }
-      axes_display->SetMarkerStyle(3);
-      axes_display->SetMarkerSize(3);
-      axes_display->SetMarkerColor(kBlue);
-      akt_jets_display->SetMarkerStyle(21);
-      akt_jets_display->SetMarkerSize(0.5);
-      akt_jets_display->SetMarkerColor(kBlue);
-      axes_display->Draw("SAMES");
-      akt_jets_display->Draw("SAMES");
+      // TCanvas *display = new TCanvas("display", "Event Display", 1093, 700);
+      // display->cd();
+      // display->SetFixedAspectRatio();
+      // event_display->GetXaxis()->SetTitle("#eta");
+      // event_display->GetYaxis()->SetTitle("#phi");
+      // event_display->SetFillColor(kBlack);
+      // event_display->SetLineColor(kBlack);
+      // event_display->SetLineWidth(1);
+      // event_display->Draw("box");
 
-      for (int a = 0; a < njet_jets_2jets.size(); a++) {
-        axes_njet_display->Fill(njet_jets_2jets[a].eta(), njet_jets_2jets[a].phi());
-        vector<PseudoJet> constituents = njet_jets_2jets[a].constituents();
-        for (int i_const = 0; i_const < constituents.size(); i_const++) {
-          njet_jets_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-        }          
-      }
-      axes_njet_display->SetMarkerStyle(3);
-      axes_njet_display->SetMarkerSize(3);
-      axes_njet_display->SetMarkerColor(kRed);
-      njet_jets_display->SetMarkerStyle(21);
-      njet_jets_display->SetMarkerSize(0.5);
-      njet_jets_display->SetMarkerColor(kRed);
-      axes_njet_display->Draw("SAMES");
-      njet_jets_display->Draw("SAMES");
+      // for (int a = 0; a < hardest_twojets.size(); a++) {
+      //   axes_display->Fill(hardest_twojets[a].eta(), hardest_twojets[a].phi());
+      //   vector<PseudoJet> constituents = hardest_twojets[a].constituents();
+      //   for (int i_const = 0; i_const < constituents.size(); i_const++) {
+      //     akt_jets_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
+      //   }          
+      // }
+      // axes_display->SetMarkerStyle(3);
+      // axes_display->SetMarkerSize(3);
+      // axes_display->SetMarkerColor(kRed);
+      // akt_jets_display->SetMarkerStyle(21);
+      // akt_jets_display->SetMarkerSize(0.5);
+      // akt_jets_display->SetMarkerColor(kRed);
+      // axes_display->Draw("SAMES");
+      // akt_jets_display->Draw("SAMES");
 
-      display->Write();
-      }
+      // for (int a = 0; a < njet_jets_2jets.size(); a++) {
+      //   axes_njet_display->Fill(njet_jets_2jets[a].eta(), njet_jets_2jets[a].phi());
+      //   vector<PseudoJet> constituents = njet_jets_2jets[a].constituents();
+      //   for (int i_const = 0; i_const < constituents.size(); i_const++) {
+      //     njet_jets_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
+      //   }          
+      // }
+      // axes_njet_display->SetMarkerStyle(3);
+      // axes_njet_display->SetMarkerSize(3);
+      // axes_njet_display->SetMarkerColor(kBlue);
+      // njet_jets_display->SetMarkerStyle(21);
+      // njet_jets_display->SetMarkerSize(0.5);
+      // njet_jets_display->SetMarkerColor(kBlue);
+      // axes_njet_display->Draw("SAMES");
+      // njet_jets_display->Draw("SAMES");
+
+      // // display->Write();
+      // }
 
       // delete display;
       delete axes_display;
@@ -605,6 +654,7 @@ int main(int argc, char* argv[]) {
   particle_mass->Write();
 
   higgs_invmass_akt->Write();
+  higgs_invmass_akt_combined->Write();
   jet_ptspectrum_akt->Write();
   jet_phispectrum_akt->Write();
   jet_distance_akt->Write();
@@ -613,19 +663,28 @@ int main(int argc, char* argv[]) {
   TCanvas *mass_compare_2jets = new TCanvas("mass_compare_2jets", "mass_compare_2jets", 600, 600);
   mass_compare_2jets->cd();
 
+
   double higgs_invmass_akt_scale = 1/higgs_invmass_akt->Integral(0, 101);
   higgs_invmass_akt->Scale(higgs_invmass_akt_scale);
   higgs_invmass_akt->SetLineColor(kBlack);
-  higgs_invmass_akt->SetTitle("2-jet Mass (pT > " + (TString)pythia_ptcut + ", R_{0} = 0.5)");
-  higgs_invmass_akt->GetXaxis()->SetTitle("m_{jj} [GeV]");
+  higgs_invmass_akt->SetTitle("Dijet Invariant Mass (p_{T} > " + (TString)pythia_ptcut + ")");
+  higgs_invmass_akt->GetXaxis()->SetTitle("m_{jj} (GeV)");
+  higgs_invmass_akt->GetYaxis()->SetTitle("Relative Occurrence");
   higgs_invmass_akt->SetMinimum(0.0);
   double max_val = higgs_invmass_akt->GetMaximum();
 
   higgs_invmass_akt->Draw();
-  TLegend *leg_mass_2jets = new TLegend(0.48, 0.48, 0.88, 0.88);
-  leg_mass_2jets->AddEntry(higgs_invmass_akt, "Anti-KT", "L");
+  TLegend *leg_mass_2jets = new TLegend(0.65, 0.65, 0.88, 0.88);
+  leg_mass_2jets->AddEntry(higgs_invmass_akt, "ak_{T}", "L");
   leg_mass_2jets->SetFillColor(kWhite);
   leg_mass_2jets->SetLineColor(kWhite);
+  // TPaveText *radius_text = new TPaveText(0.5, 0.82, 0.6, 0.88, "brNDC");
+  TPaveText *radius_text = new TPaveText(0.65, 0.5, 0.88, 0.6, "brNDC");
+  radius_text->SetTextFont(132);
+  radius_text->SetTextSize(0.06);
+  radius_text->SetFillColor(kWhite);
+  radius_text->SetLineColor(kWhite);
+  radius_text->AddText("R = 0.5");
   double akt_efficiency = higgs_invmass_akt->Integral(20, 30);
   higgs_efficiencies_2jets[0][i_perp] = akt_efficiency;
 
@@ -655,6 +714,7 @@ int main(int argc, char* argv[]) {
     TH1* tau1_diff = (TH1*)tau1_diff_hists.At(B);
 
     TH1* higgs_invmass_njet = (TH1*)higgs_invmass_njet_hists.At(B);
+    TH1* higgs_invmass_njet_combined = (TH1*)higgs_invmass_njet_combined_hists.At(B);
     TH1* jet_ptspectrum_njet = (TH1*)jet_ptspectrum_njet_hists.At(B);
     TH1* jet_phispectrum_njet = (TH1*)jet_phispectrum_njet_hists.At(B);
     TH1* jet_distance_njet = (TH1*)jet_distance_njet_hists.At(B);
@@ -669,6 +729,7 @@ int main(int argc, char* argv[]) {
     tau2_diff->Write();
     tau1_diff->Write();
     higgs_invmass_njet->Write();
+    higgs_invmass_njet_combined->Write();
     jet_ptspectrum_njet->Write();
     jet_phispectrum_njet->Write();
     jet_distance_njet->Write();
@@ -679,8 +740,8 @@ int main(int argc, char* argv[]) {
 
     if (B == 0) higgs_invmass_njet->SetLineColor(kGreen);
     if (B == 1) higgs_invmass_njet->SetLineColor(kYellow);
-    if (B == 2) higgs_invmass_njet->SetLineColor(kBlue);
-    if (B == 3) higgs_invmass_njet->SetLineColor(kRed);
+    if (B == 2) higgs_invmass_njet->SetLineColor(kRed);
+    if (B == 3) higgs_invmass_njet->SetLineColor(kBlue);
 
     if (B == 2 || B == 3) {
       higgs_invmass_njet->Draw("SAMES");
@@ -700,10 +761,68 @@ int main(int argc, char* argv[]) {
     // angulardiff_1jet[B + 1][i_perp] = calcMedian1(jet_distance_diff_njet);
     angulardiff_prop_1jet[B + 1][i_perp] = (double)jet_distance_diff_njet->Integral(0, (double)jet_distance_diff_njet->GetNbinsX()/10.0)/jet_distance_diff_njet->Integral(0, jet_distance_diff_njet->GetNbinsX() + 1);
   }
-  higgs_invmass_akt->SetMaximum(max_val);
+  higgs_invmass_akt->SetMaximum(1.2*max_val);
   leg_mass_2jets->Draw("SAMES");
+  radius_text->Draw("SAMES");
   mass_compare_2jets->Write();
-  mass_compare_2jets->Print("mass_compare_2jets_pt" + (TString)pythia_ptcut + ".eps", "eps");
+  mass_compare_2jets->Print("higgs2bbstudy_plots/mass_compare_2jets_pt" + (TString)pythia_ptcut + ".eps", "eps");
+
+
+  TCanvas *mass_compare_2jets_combined = new TCanvas("mass_compare_2jets_combined", "mass_compare_2jets_combined", 600, 600);
+  mass_compare_2jets_combined->cd();
+
+  double higgs_invmass_akt_combined_scale = 1/higgs_invmass_akt_combined->Integral(0, 101);
+  higgs_invmass_akt_combined->Scale(higgs_invmass_akt_combined_scale);
+  higgs_invmass_akt_combined->SetLineColor(kBlack);
+  higgs_invmass_akt_combined->SetTitle("Invariant Mass (p_{T} > " + (TString)pythia_ptcut + ")");
+  higgs_invmass_akt_combined->GetXaxis()->SetTitle("m_{jj} (GeV)");
+  higgs_invmass_akt_combined->GetYaxis()->SetTitle("Relative Occurrence");
+  higgs_invmass_akt_combined->SetMinimum(0.0);
+  double max_val_combined = higgs_invmass_akt_combined->GetMaximum();
+
+  higgs_invmass_akt_combined->Draw();
+  TLegend *leg_mass_2jets_combined = new TLegend(0.65, 0.65, 0.88, 0.88);
+  leg_mass_2jets_combined->AddEntry(higgs_invmass_akt_combined, "ak_{T}", "L");
+  leg_mass_2jets_combined->SetFillColor(kWhite);
+  leg_mass_2jets_combined->SetLineColor(kWhite);
+  double akt_efficiency_combined = higgs_invmass_akt_combined->Integral(20, 30);
+  higgs_efficiencies_2jets_combined[0][i_perp] = akt_efficiency_combined;
+
+  for (int B = 0; B < n_betas; B++) {
+
+    double beta = betalist[B];
+
+    ostringstream ss;
+    ss << beta;
+
+    TH1* higgs_invmass_njet_combined = (TH1*)higgs_invmass_njet_combined_hists.At(B);
+
+    higgs_invmass_njet_combined->Write();
+
+    double higgs_invmass_njet_combined_scale = 1/higgs_invmass_njet_combined->Integral(0, 101);
+    higgs_invmass_njet_combined->Scale(higgs_invmass_njet_combined_scale);
+
+    if (B == 0) higgs_invmass_njet_combined->SetLineColor(kGreen);
+    if (B == 1) higgs_invmass_njet_combined->SetLineColor(kYellow);
+    if (B == 2) higgs_invmass_njet_combined->SetLineColor(kRed);
+    if (B == 3) higgs_invmass_njet_combined->SetLineColor(kBlue);
+
+    if (B == 2 || B == 3) {
+      higgs_invmass_njet_combined->Draw("SAMES");
+      leg_mass_2jets_combined->AddEntry(higgs_invmass_njet_combined, "#beta = " + (TString)ss.str(), "L");
+    }
+    if (higgs_invmass_njet_combined->GetMaximum() > max_val_combined) max_val_combined = higgs_invmass_njet_combined->GetMaximum();
+    double efficiency_combined = higgs_invmass_njet_combined->Integral(20, 30);
+    higgs_efficiencies_2jets_combined[B + 1][i_perp] = efficiency_combined;
+
+  }
+
+  higgs_invmass_akt_combined->SetMaximum(1.2*max_val_combined);
+  leg_mass_2jets_combined->Draw("SAMES");
+  radius_text->Draw("SAMES");
+  mass_compare_2jets_combined->Write();
+  mass_compare_2jets_combined->Print("higgs2bbstudy_plots/mass_compare_2jets_combined_pt" + (TString)pythia_ptcut + ".eps", "eps");
+
 
 
   TCanvas *phi_compare_1jet = new TCanvas("phi_compare_1jet", "phi_compare_1jet", 600, 600);
@@ -728,6 +847,8 @@ int main(int argc, char* argv[]) {
 
     TH1* jetphi_diff = (TH1*)jetphi_diff_hists.At(B);
 
+    jetphi_diff_allpt_allbeta.Add(jetphi_diff);
+
     const Int_t nq = 100;
     Double_t xq[nq];  // position where to compute the quantiles in [0,1]
     Double_t yq[nq];  // array to contain the quantiles
@@ -743,17 +864,18 @@ int main(int argc, char* argv[]) {
 
     double jetphi_diff_scale = 1/jetphi_diff->Integral(0, 101);
     jetphi_diff->Scale(jetphi_diff_scale);
-    jetphi_diff->SetTitle("1-jet and hardest AKT Distance(pT > " + (TString)pythia_ptcut + ", R_{0} = 0.5)");
+    jetphi_diff->SetTitle("1-jet and hardest AKT Distance(p_{T} > " + (TString)pythia_ptcut + ")");
     jetphi_diff->GetXaxis()->SetTitle("#Delta R");
+    jetphi_diff->GetYaxis()->SetTitle("Relative Occurrence");
 
     if (B == 0) jetphi_diff->SetLineColor(kGreen);
     if (B == 1) jetphi_diff->SetLineColor(kYellow);
     if (B == 2) {
-      jetphi_diff->SetLineColor(kBlue);
+      jetphi_diff->SetLineColor(kRed);
       jetphi_diff->Draw();
     }
     if (B == 3) {
-      jetphi_diff->SetLineColor(kRed);
+      jetphi_diff->SetLineColor(kBlue);
       jetphi_diff->Draw("SAMES");
     }
 
@@ -769,7 +891,7 @@ int main(int argc, char* argv[]) {
 
   leg_phi_1jet->Draw("SAMES");
   phi_compare_1jet->Write();
-  phi_compare_1jet->Print("phi_compare_1jet_pt" + (TString)pythia_ptcut + ".eps", "eps");
+  phi_compare_1jet->Print("higgs2bbstudy_plots/phi_compare_1jet_pt" + (TString)pythia_ptcut + ".eps", "eps");
 
 
   TCanvas *perp_compare_1jet = new TCanvas("perp_compare_1jet", "perp_compare_1jet", 600, 600);
@@ -794,13 +916,14 @@ int main(int argc, char* argv[]) {
     double jetperp_diff_scale = 1/jetperp_diff->Integral(0, 101);
     jetperp_diff->Scale(akt_jet_perp_scale);
 
-    jetperp_diff->SetTitle("1-jet and hardest AKT pT difference (pT > " + (TString)pythia_ptcut + ", R_{0} = 0.5)");
-    jetperp_diff->GetXaxis()->SetTitle("p_{T}_{akt} - p_{T}_{1jet}");
+    jetperp_diff->SetTitle("1-jet and hardest AKT p_{T} difference (p_{T} > " + (TString)pythia_ptcut + ")");
+    jetperp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet}");
+    jetperp_diff->GetYaxis()->SetTitle("Relative Occurrence");
 
     if (B == 0) jetperp_diff->SetLineColor(kGreen);
     if (B == 1) jetperp_diff->SetLineColor(kYellow);
-    if (B == 2) jetperp_diff->SetLineColor(kBlue);
-    if (B == 3) jetperp_diff->SetLineColor(kRed);
+    if (B == 2) jetperp_diff->SetLineColor(kRed);
+    if (B == 3) jetperp_diff->SetLineColor(kBlue);
 
     if (B == 2 || B == 3) {
       jetperp_diff->Draw("SAMES");
@@ -813,8 +936,9 @@ int main(int argc, char* argv[]) {
   }
 
   leg_perp_1jet->Draw("SAMES");
+
   perp_compare_1jet->Write();
-  perp_compare_1jet->Print("perp_compare_1jet_pt" + (TString)pythia_ptcut + ".eps", "eps");
+  perp_compare_1jet->Print("higgs2bbstudy_plots/perp_compare_1jet_pt" + (TString)pythia_ptcut + ".eps", "eps");
 
   TCanvas *mass_compare_1jet = new TCanvas("mass_compare_1jet", "mass_compare_1jet", 600, 600);
   mass_compare_1jet->cd();
@@ -822,16 +946,17 @@ int main(int argc, char* argv[]) {
   double akt_jet_mass_scale = 1/akt_jet_mass->Integral(0, 101);
   akt_jet_mass->Scale(akt_jet_mass_scale);
   akt_jet_mass->SetLineColor(kBlack);
-  akt_jet_mass->SetTitle("1-jet Mass (pT > " + (TString)pythia_ptcut + ", R_{0} = 0.5)");
-  akt_jet_mass->GetXaxis()->SetTitle("m_{j} [GeV]");
+  akt_jet_mass->SetTitle("Single Jet Mass (p_{T} > " + (TString)pythia_ptcut + ")");
+  akt_jet_mass->GetXaxis()->SetTitle("m_{j} (GeV)");
+  akt_jet_mass->GetYaxis()->SetTitle("Relative Occurrence");
   akt_jet_mass->SetMinimum(0.0);
   double max_val_1jet = akt_jet_mass->GetMaximum();
 
   akt_jet_mass->Draw();
-  TLegend *leg_mass_1jet = new TLegend(0.48, 0.48, 0.88, 0.88);
+  TLegend *leg_mass_1jet = new TLegend(0.65, 0.65, 0.88, 0.88);
   leg_mass_1jet->SetFillColor(kWhite);
   leg_mass_1jet->SetLineColor(kWhite);
-  leg_mass_1jet->AddEntry(akt_jet_mass, "Anti-KT", "L");
+  leg_mass_1jet->AddEntry(akt_jet_mass, "ak_{T}", "L");
   double akt_efficiency_1jet = akt_jet_mass->Integral(20, 30);
   higgs_efficiencies_1jet[0][i_perp] = akt_efficiency_1jet;
 
@@ -849,8 +974,8 @@ int main(int argc, char* argv[]) {
 
     if (B == 0) njet_jet_mass->SetLineColor(kGreen);
     if (B == 1) njet_jet_mass->SetLineColor(kYellow);
-    if (B == 2) njet_jet_mass->SetLineColor(kBlue);
-    if (B == 3) njet_jet_mass->SetLineColor(kRed);
+    if (B == 2) njet_jet_mass->SetLineColor(kRed);
+    if (B == 3) njet_jet_mass->SetLineColor(kBlue);
 
     if (B == 2 || B == 3) {
       njet_jet_mass->Draw("SAMES");
@@ -862,10 +987,11 @@ int main(int argc, char* argv[]) {
 
   }
 
-  akt_jet_mass->SetMaximum(max_val);
+  akt_jet_mass->SetMaximum(1.2*max_val_1jet);
   leg_mass_1jet->Draw("SAMES");
+  radius_text->Draw("SAMES");
   mass_compare_1jet->Write();
-  mass_compare_1jet->Print("mass_compare_1jet_pt" + (TString)pythia_ptcut + ".eps", "eps");
+  mass_compare_1jet->Print("higgs2bbstudy_plots/mass_compare_1jet_pt" + (TString)pythia_ptcut + ".eps", "eps");
 
   TCanvas *mass_compare_3jets = new TCanvas("mass_compare_3jets", "mass_compare_3jets", 600, 600);
   mass_compare_3jets->cd();
@@ -873,16 +999,17 @@ int main(int argc, char* argv[]) {
   double threejet_invmass_akt_scale = 1/threejet_invmass_akt->Integral(0, 101);
   threejet_invmass_akt->Scale(threejet_invmass_akt_scale);
   threejet_invmass_akt->SetLineColor(kBlack);
-  threejet_invmass_akt->SetTitle("3-jet Mass (pT > " + (TString)pythia_ptcut + ", R_{0} = 0.5)");
-  threejet_invmass_akt->GetXaxis()->SetTitle("m_{jjj} [GeV]");
+  threejet_invmass_akt->SetTitle("3-jet Mass (p_{T} > " + (TString)pythia_ptcut + ")");
+  threejet_invmass_akt->GetXaxis()->SetTitle("m_{jjj} (GeV)");
+  threejet_invmass_akt->GetYaxis()->SetTitle("Relative Occurrence");
   threejet_invmass_akt->SetMinimum(0.0);
   double max_val_mass_3jets = threejet_invmass_akt->GetMaximum();
 
   threejet_invmass_akt->Draw();
-  TLegend *leg_mass_3jets = new TLegend(0.48, 0.48, 0.88, 0.88);
+  TLegend *leg_mass_3jets = new TLegend(0.65, 0.65, 0.88, 0.88);
   leg_mass_3jets->SetFillColor(kWhite);
   leg_mass_3jets->SetLineColor(kWhite);
-  leg_mass_3jets->AddEntry(threejet_invmass_akt, "Anti-KT", "L");
+  leg_mass_3jets->AddEntry(threejet_invmass_akt, "ak_{T}", "L");
 
   double akt_efficiency_3jets = threejet_invmass_akt->Integral(20, 30);
   higgs_efficiencies_3jets[0][i_perp] = akt_efficiency_3jets;
@@ -913,8 +1040,8 @@ int main(int argc, char* argv[]) {
 
     if (B == 0) threejet_invmass_njet->SetLineColor(kGreen);
     if (B == 1) threejet_invmass_njet->SetLineColor(kYellow);
-    if (B == 2) threejet_invmass_njet->SetLineColor(kBlue);
-    if (B == 3) threejet_invmass_njet->SetLineColor(kRed);
+    if (B == 2) threejet_invmass_njet->SetLineColor(kRed);
+    if (B == 3) threejet_invmass_njet->SetLineColor(kBlue);
 
     if (B == 2 || B == 3) {
       threejet_invmass_njet->Draw("SAMES");
@@ -929,10 +1056,10 @@ int main(int argc, char* argv[]) {
 
   }
 
-  threejet_invmass_akt->SetMaximum(max_val);
+  threejet_invmass_akt->SetMaximum(1.2*max_val_mass_3jets);
   leg_mass_3jets->Draw("SAMES");
   mass_compare_3jets->Write();
-  mass_compare_3jets->Print("mass_compare_3jets_pt" + (TString)pythia_ptcut + ".eps", "eps");
+  mass_compare_3jets->Print("higgs2bbstudy_plots/mass_compare_3jets_pt" + (TString)pythia_ptcut + ".eps", "eps");
 
 
   //Prevent memory leaks  
@@ -946,19 +1073,29 @@ TMultiGraph *higgs_efficiencies_1jet_biggraph = new TMultiGraph();
 TMultiGraph *higgs_efficiencies_2jets_biggraph = new TMultiGraph();
 TMultiGraph *higgs_efficiencies_3jets_biggraph = new TMultiGraph();
 TMultiGraph *higgs_efficiencies_32ratio_biggraph = new TMultiGraph();
+TMultiGraph *higgs_efficiencies_2jets_combined_biggraph = new TMultiGraph();
 TMultiGraph *angulardiff_1jet_biggraph = new TMultiGraph();
 TMultiGraph *angulardiff_prop_1jet_biggraph = new TMultiGraph();
 TMultiGraph *angulardiff_2jets_biggraph = new TMultiGraph();
 TMultiGraph *jet_distance_diff_1jet_biggraph = new TMultiGraph();
 
-TLegend *leg_higgs_1jet = new TLegend(0.12, 0.65, 0.35, 0.88);
-TLegend *leg_higgs_2jets = new TLegend(0.12, 0.65, 0.35, 0.88);
-TLegend *leg_higgs_3jets = new TLegend(0.12, 0.65, 0.35, 0.88);
-TLegend *leg_higgs_32ratio = new TLegend(0.12, 0.65, 0.35, 0.88);
+TLegend *leg_higgs_1jet = new TLegend(0.14, 0.65, 0.35, 0.88);
+TLegend *leg_higgs_2jets = new TLegend(0.14, 0.65, 0.35, 0.88);
+TLegend *leg_higgs_3jets = new TLegend(0.14, 0.65, 0.35, 0.88);
+TLegend *leg_higgs_32ratio = new TLegend(0.14, 0.65, 0.35, 0.88);
+TLegend *leg_higgs_2jets_combined = new TLegend(0.14, 0.65, 0.35, 0.88);
 TLegend *leg_angulardiff_1jet = new TLegend(0.6, 0.6, 0.88, 0.88);
 TLegend *leg_angulardiff_prop_1jet = new TLegend(0.6, 0.6, 0.88, 0.88);
 TLegend *leg_angulardiff_2jets = new TLegend(0.12, 0.6, 0.4, 0.88);
 TLegend *leg_jet_distance_diff_1jet = new TLegend(0.12, 0.6, 0.4, 0.88);
+
+TPaveText* radius_text = new TPaveText(0.37, 0.82, 0.47, 0.88, "brNDC");
+radius_text->SetTextFont(132);
+radius_text->SetTextSize(0.06);
+radius_text->SetFillColor(kWhite);
+radius_text->SetLineColor(kWhite);
+radius_text->SetBorderSize(0);
+radius_text->AddText("R = 0.5");
 
 leg_higgs_1jet->SetFillColor(kWhite);
 leg_higgs_1jet->SetLineWidth(0);
@@ -972,6 +1109,9 @@ leg_higgs_3jets->SetLineColor(kWhite);
 leg_higgs_32ratio->SetFillColor(kWhite);
 leg_higgs_32ratio->SetLineWidth(0);
 leg_higgs_32ratio->SetLineColor(kWhite);
+leg_higgs_2jets_combined->SetFillColor(kWhite);
+leg_higgs_2jets_combined->SetLineWidth(0);
+leg_higgs_2jets_combined->SetLineColor(kWhite);
 leg_angulardiff_1jet->SetFillColor(kWhite);
 leg_angulardiff_1jet->SetLineWidth(0);
 leg_angulardiff_1jet->SetLineColor(kWhite);
@@ -992,47 +1132,52 @@ for (int i = 0; i < n_betas + 1; i++) {
   ostringstream ss;
   ss << beta;
 
-
-
   TGraph *higgs_efficiencies_1jet_graph = new TGraph(n_perps, perplist, higgs_efficiencies_1jet[i]);
   TGraph *higgs_efficiencies_2jets_graph = new TGraph(n_perps, perplist, higgs_efficiencies_2jets[i]);
   TGraph *higgs_efficiencies_3jets_graph = new TGraph(n_perps, perplist, higgs_efficiencies_3jets[i]);
   TGraph *higgs_efficiencies_32ratio_graph = new TGraph(n_perps, perplist, higgs_efficiencies_32ratio[i]);
+  TGraph *higgs_efficiencies_2jets_combined_graph = new TGraph(n_perps, perplist, higgs_efficiencies_2jets_combined[i]);
   TGraph *angulardiff_1jet_graph = new TGraph(n_perps, perplist, angulardiff_1jet[i]);
   TGraph *angulardiff_prop_1jet_graph = new TGraph(n_perps, perplist, angulardiff_prop_1jet[i]);
   TGraph *angulardiff_2jets_graph = new TGraph(n_perps, perplist, angulardiff_2jets[i]);
   // TGraphAsymmErrors *jet_distance_diff_1jet_graph = new TGraphAsymmErrors(n_perps, perplist, jet_distance_1jet_median[i], 0, 0, jet_distance_1jet_firstquartile[i], jet_distance_1jet_thirdquartile[i]);
   TGraph *jet_distance_diff_1jet_graph = new TGraph(n_perps, perplist, jet_distance_1jet_median[i]);
 
-  higgs_efficiencies_1jet_graph->SetMarkerStyle(3);
-  higgs_efficiencies_1jet_graph->SetMarkerSize(2);
-  higgs_efficiencies_2jets_graph->SetMarkerStyle(3);
-  higgs_efficiencies_2jets_graph->SetMarkerSize(2);
-  higgs_efficiencies_3jets_graph->SetMarkerStyle(3);
-  higgs_efficiencies_3jets_graph->SetMarkerSize(2);
-  higgs_efficiencies_32ratio_graph->SetMarkerStyle(3);
-  higgs_efficiencies_32ratio_graph->SetMarkerSize(2);
-  angulardiff_1jet_graph->SetMarkerStyle(3);
-  angulardiff_1jet_graph->SetMarkerSize(2);
-  angulardiff_prop_1jet_graph->SetMarkerStyle(3);
-  angulardiff_prop_1jet_graph->SetMarkerSize(2);
-  angulardiff_2jets_graph->SetMarkerStyle(3);
-  angulardiff_2jets_graph->SetMarkerSize(2);
-  jet_distance_diff_1jet_graph->SetMarkerStyle(3);
-  jet_distance_diff_1jet_graph->SetMarkerSize(2);
+  higgs_efficiencies_1jet_graph->SetLineWidth(3);
+  higgs_efficiencies_2jets_graph->SetLineWidth(3);
+  higgs_efficiencies_2jets_combined_graph->SetLineWidth(3);
+
+  // higgs_efficiencies_1jet_graph->SetMarkerStyle(3);
+  // higgs_efficiencies_1jet_graph->SetMarkerSize(2);
+  // higgs_efficiencies_2jets_graph->SetMarkerStyle(3);
+  // higgs_efficiencies_2jets_graph->SetMarkerSize(2);
+  // higgs_efficiencies_3jets_graph->SetMarkerStyle(3);
+  // higgs_efficiencies_3jets_graph->SetMarkerSize(2);
+  // higgs_efficiencies_32ratio_graph->SetMarkerStyle(3);
+  // higgs_efficiencies_32ratio_graph->SetMarkerSize(2);
+  // angulardiff_1jet_graph->SetMarkerStyle(3);
+  // angulardiff_1jet_graph->SetMarkerSize(2);
+  // angulardiff_prop_1jet_graph->SetMarkerStyle(3);
+  // angulardiff_prop_1jet_graph->SetMarkerSize(2);
+  // angulardiff_2jets_graph->SetMarkerStyle(3);
+  // angulardiff_2jets_graph->SetMarkerSize(2);
+  // jet_distance_diff_1jet_graph->SetMarkerStyle(3);
+  // jet_distance_diff_1jet_graph->SetMarkerSize(2);
 
   if (i == 0) {
     higgs_efficiencies_1jet_graph->SetMarkerColor(kBlack);
     higgs_efficiencies_2jets_graph->SetMarkerColor(kBlack);
     higgs_efficiencies_3jets_graph->SetMarkerColor(kBlack);
     higgs_efficiencies_32ratio_graph->SetMarkerColor(kBlack);
+    higgs_efficiencies_2jets_combined_graph->SetMarkerColor(kBlack);
     angulardiff_2jets_graph->SetMarkerColor(kBlack);
     angulardiff_2jets_graph->SetLineColor(kBlack);
-    leg_higgs_1jet->AddEntry(higgs_efficiencies_1jet_graph, "Anti-KT", "p");
-    leg_higgs_2jets->AddEntry(higgs_efficiencies_2jets_graph, "Anti-KT", "p");
-    leg_higgs_3jets->AddEntry(higgs_efficiencies_3jets_graph, "Anti-KT", "p");
-    leg_higgs_32ratio->AddEntry(higgs_efficiencies_32ratio_graph, "Anti-KT", "p");
-    leg_angulardiff_2jets->AddEntry(angulardiff_2jets_graph, "Anti-KT", "p");
+    leg_higgs_1jet->AddEntry(higgs_efficiencies_1jet_graph, "ak_{T}", "l");
+    leg_higgs_2jets->AddEntry(higgs_efficiencies_2jets_graph, "ak_{T}", "l");
+    leg_higgs_3jets->AddEntry(higgs_efficiencies_3jets_graph, "ak_{T}", "l");
+    leg_higgs_32ratio->AddEntry(higgs_efficiencies_32ratio_graph, "ak_{T}", "l");
+    leg_higgs_2jets_combined->AddEntry(higgs_efficiencies_2jets_combined_graph, "ak_{T}", "l");
+    leg_angulardiff_2jets->AddEntry(angulardiff_2jets_graph, "ak_{T}", "l");
   }
   if (i == 1) {
     higgs_efficiencies_1jet_graph->SetMarkerColor(kGreen);
@@ -1043,6 +1188,8 @@ for (int i = 0; i < n_betas + 1; i++) {
     higgs_efficiencies_3jets_graph->SetLineColor(kGreen);
     higgs_efficiencies_32ratio_graph->SetMarkerColor(kGreen);
     higgs_efficiencies_32ratio_graph->SetLineColor(kGreen);
+    higgs_efficiencies_2jets_combined_graph->SetMarkerColor(kGreen);
+    higgs_efficiencies_2jets_combined_graph->SetLineColor(kGreen);
     angulardiff_1jet_graph->SetMarkerColor(kGreen);
     angulardiff_prop_1jet_graph->SetMarkerColor(kGreen);
     angulardiff_2jets_graph->SetMarkerColor(kGreen);
@@ -1059,6 +1206,8 @@ for (int i = 0; i < n_betas + 1; i++) {
     higgs_efficiencies_3jets_graph->SetLineColor(kYellow);
     higgs_efficiencies_32ratio_graph->SetMarkerColor(kYellow);
     higgs_efficiencies_32ratio_graph->SetLineColor(kYellow);
+    higgs_efficiencies_2jets_combined_graph->SetMarkerColor(kYellow);
+    higgs_efficiencies_2jets_combined_graph->SetLineColor(kYellow);
     angulardiff_1jet_graph->SetMarkerColor(kYellow);
     angulardiff_prop_1jet_graph->SetMarkerColor(kYellow);
     angulardiff_2jets_graph->SetMarkerColor(kYellow);
@@ -1067,23 +1216,6 @@ for (int i = 0; i < n_betas + 1; i++) {
     jet_distance_diff_1jet_graph->SetLineColor(kYellow);
   }
   if (i == 3) {
-    higgs_efficiencies_1jet_graph->SetMarkerColor(kBlue);
-    higgs_efficiencies_2jets_graph->SetMarkerColor(kBlue);
-    higgs_efficiencies_3jets_graph->SetMarkerColor(kBlue);
-    higgs_efficiencies_1jet_graph->SetLineColor(kBlue);
-    higgs_efficiencies_2jets_graph->SetLineColor(kBlue);
-    higgs_efficiencies_3jets_graph->SetLineColor(kBlue);
-    higgs_efficiencies_32ratio_graph->SetMarkerColor(kBlue);
-    higgs_efficiencies_32ratio_graph->SetLineColor(kBlue);
-    angulardiff_1jet_graph->SetMarkerColor(kBlue);
-    angulardiff_prop_1jet_graph->SetMarkerColor(kBlue);
-    angulardiff_2jets_graph->SetMarkerColor(kBlue);
-    angulardiff_2jets_graph->SetLineColor(kBlue);
-    jet_distance_diff_1jet_graph->SetMarkerColor(kBlue);
-    jet_distance_diff_1jet_graph->SetLineColor(kBlue);
-
-  }
-  if (i == 4) {
     higgs_efficiencies_1jet_graph->SetMarkerColor(kRed);
     higgs_efficiencies_2jets_graph->SetMarkerColor(kRed);
     higgs_efficiencies_3jets_graph->SetMarkerColor(kRed);
@@ -1092,6 +1224,8 @@ for (int i = 0; i < n_betas + 1; i++) {
     higgs_efficiencies_3jets_graph->SetLineColor(kRed);
     higgs_efficiencies_32ratio_graph->SetMarkerColor(kRed);
     higgs_efficiencies_32ratio_graph->SetLineColor(kRed);
+    higgs_efficiencies_2jets_combined_graph->SetMarkerColor(kRed);
+    higgs_efficiencies_2jets_combined_graph->SetLineColor(kRed);
     angulardiff_1jet_graph->SetMarkerColor(kRed);
     angulardiff_prop_1jet_graph->SetMarkerColor(kRed);
     angulardiff_2jets_graph->SetMarkerColor(kRed);
@@ -1100,133 +1234,214 @@ for (int i = 0; i < n_betas + 1; i++) {
     jet_distance_diff_1jet_graph->SetLineColor(kRed);
 
   }
+  if (i == 4) {
+    higgs_efficiencies_1jet_graph->SetMarkerColor(kBlue);
+    higgs_efficiencies_2jets_graph->SetMarkerColor(kBlue);
+    higgs_efficiencies_3jets_graph->SetMarkerColor(kBlue);
+    higgs_efficiencies_1jet_graph->SetLineColor(kBlue);
+    higgs_efficiencies_2jets_graph->SetLineColor(kBlue);
+    higgs_efficiencies_3jets_graph->SetLineColor(kBlue);
+    higgs_efficiencies_32ratio_graph->SetMarkerColor(kBlue);
+    higgs_efficiencies_32ratio_graph->SetLineColor(kBlue);
+    higgs_efficiencies_2jets_combined_graph->SetMarkerColor(kBlue);
+    higgs_efficiencies_2jets_combined_graph->SetLineColor(kBlue);
+    angulardiff_1jet_graph->SetMarkerColor(kBlue);
+    angulardiff_prop_1jet_graph->SetMarkerColor(kBlue);
+    angulardiff_2jets_graph->SetMarkerColor(kBlue);
+    angulardiff_2jets_graph->SetLineColor(kBlue);
+    jet_distance_diff_1jet_graph->SetMarkerColor(kBlue);
+    jet_distance_diff_1jet_graph->SetLineColor(kBlue);
+
+  }
 
   if (i == 0 || i == 3 || i == 4) {
     higgs_efficiencies_1jet_biggraph->Add(higgs_efficiencies_1jet_graph);
     higgs_efficiencies_2jets_biggraph->Add(higgs_efficiencies_2jets_graph);
     higgs_efficiencies_3jets_biggraph->Add(higgs_efficiencies_3jets_graph);
     higgs_efficiencies_32ratio_biggraph->Add(higgs_efficiencies_32ratio_graph);
+    higgs_efficiencies_2jets_combined_biggraph->Add(higgs_efficiencies_2jets_combined_graph);
     angulardiff_2jets_biggraph->Add(angulardiff_2jets_graph);
     angulardiff_1jet_biggraph->Add(angulardiff_1jet_graph);
     angulardiff_prop_1jet_biggraph->Add(angulardiff_prop_1jet_graph);
     if (i != 0) {
       jet_distance_diff_1jet_biggraph->Add(jet_distance_diff_1jet_graph);
-      leg_higgs_1jet->AddEntry(higgs_efficiencies_1jet_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_higgs_2jets->AddEntry(higgs_efficiencies_2jets_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_higgs_3jets->AddEntry(higgs_efficiencies_3jets_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_higgs_32ratio->AddEntry(higgs_efficiencies_32ratio_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_angulardiff_1jet->AddEntry(angulardiff_1jet_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_angulardiff_prop_1jet->AddEntry(angulardiff_prop_1jet_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_angulardiff_2jets->AddEntry(angulardiff_2jets_graph, "#beta = " + (TString)ss.str(), "p");
-      leg_jet_distance_diff_1jet->AddEntry(jet_distance_diff_1jet_graph, "#beta = " + (TString)ss.str(), "p");
+      leg_higgs_1jet->AddEntry(higgs_efficiencies_1jet_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_higgs_2jets->AddEntry(higgs_efficiencies_2jets_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_higgs_3jets->AddEntry(higgs_efficiencies_3jets_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_higgs_32ratio->AddEntry(higgs_efficiencies_32ratio_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_higgs_2jets_combined->AddEntry(higgs_efficiencies_2jets_combined_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_angulardiff_1jet->AddEntry(angulardiff_1jet_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_angulardiff_prop_1jet->AddEntry(angulardiff_prop_1jet_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_angulardiff_2jets->AddEntry(angulardiff_2jets_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_jet_distance_diff_1jet->AddEntry(jet_distance_diff_1jet_graph, "#beta = " + (TString)ss.str(), "l");
     }
   }
 }
 
+TLine *merging_point = new TLine();
+merging_point->SetX1(500);
+merging_point->SetVertical(true);
+merging_point->SetY1(0);
+merging_point->SetY2(1.0);
+merging_point->SetLineColor(kRed);
+merging_point->SetLineWidth(3);
+merging_point->SetLineStyle(7);
+
 TCanvas *higgs_1jet_can = new TCanvas("higgs_1jet_can", "higgs_1jet_can", 800, 600);
 higgs_1jet_can->cd();
-higgs_efficiencies_1jet_biggraph->Draw("ACP");
+higgs_efficiencies_1jet_biggraph->Draw("ALP");
 leg_higgs_1jet->Draw();
+radius_text->Draw();
+merging_point->Draw();
 higgs_efficiencies_1jet_biggraph->SetMinimum(0.);     
 higgs_efficiencies_1jet_biggraph->SetMaximum(1.0);
-higgs_efficiencies_1jet_biggraph->SetTitle("Higgs Efficiencies for 1-jettiness with 100 < m_{j} < 150 (R_{0} = 0.5)");
-higgs_efficiencies_1jet_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+higgs_efficiencies_1jet_biggraph->SetTitle("Higgs Efficiencies for 1-jettiness");
+higgs_efficiencies_1jet_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 higgs_efficiencies_1jet_biggraph->GetYaxis()->SetTitle("% mass 100-150");
 higgs_efficiencies_1jet_biggraph->GetYaxis()->SetTitleOffset(1.3);
 higgs_1jet_can->Write();
-higgs_1jet_can->Print("higgs_efficiencies_1jet.eps", "eps");
+higgs_1jet_can->Print("higgs2bbstudy_plots/higgs_efficiencies_1jet.eps", "eps");
 
 TCanvas *higgs_2jets_can = new TCanvas("higgs_2jets_can", "higgs_2jets_can", 800, 600);
 higgs_2jets_can->cd();
-higgs_efficiencies_2jets_biggraph->Draw("ACP");
+higgs_efficiencies_2jets_biggraph->Draw("ALP");
 leg_higgs_2jets->Draw();
+radius_text->Draw();
+merging_point->Draw();
 higgs_efficiencies_2jets_biggraph->SetMinimum(0.);     
 higgs_efficiencies_2jets_biggraph->SetMaximum(1.0);
-higgs_efficiencies_2jets_biggraph->SetTitle("Higgs Efficiencies for 2-jettiness with 100 < m_{jj} < 150 (R_{0} = 0.5)");
-higgs_efficiencies_2jets_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+higgs_efficiencies_2jets_biggraph->SetTitle("Higgs Efficiencies for 2-jettiness");
+higgs_efficiencies_2jets_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 higgs_efficiencies_2jets_biggraph->GetYaxis()->SetTitle("% mass 100-150");
 higgs_efficiencies_2jets_biggraph->GetYaxis()->SetTitleOffset(1.3);
 higgs_2jets_can->Write();
-higgs_2jets_can->Print("higgs_efficiencies_2jets.eps", "eps");
+higgs_2jets_can->Print("higgs2bbstudy_plots/higgs_efficiencies_2jets.eps", "eps");
 
 TCanvas *higgs_3jets_can = new TCanvas("higgs_3jets_can", "higgs_3jets_can", 800, 600);
 higgs_3jets_can->cd();
-higgs_efficiencies_3jets_biggraph->Draw("ACP");
+higgs_efficiencies_3jets_biggraph->Draw("ALP");
 leg_higgs_3jets->Draw();
+radius_text->Draw();
+merging_point->Draw();
 higgs_efficiencies_3jets_biggraph->SetMinimum(0.);     
 higgs_efficiencies_3jets_biggraph->SetMaximum(1.0);
-higgs_efficiencies_3jets_biggraph->SetTitle("Higgs Efficiencies for 3-jettiness with 100 < m_{jjj} < 150 (R_{0} = 0.5, R_{cut} = 1.0)");
-higgs_efficiencies_3jets_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+higgs_efficiencies_3jets_biggraph->SetTitle("Higgs Efficiencies for 3-jettiness");
+higgs_efficiencies_3jets_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 higgs_efficiencies_3jets_biggraph->GetYaxis()->SetTitle("% mass 100-150");
 higgs_efficiencies_3jets_biggraph->GetYaxis()->SetTitleOffset(1.3);
 higgs_3jets_can->Write();
-higgs_3jets_can->Print("higgs_efficiencies_3jets.eps", "eps");
+higgs_3jets_can->Print("higgs2bbstudy_plots/higgs_efficiencies_3jets.eps", "eps");
 
 TCanvas *higgs_32ratio_can = new TCanvas("higgs_32ratio_can", "higgs_32ratio_can", 800, 600);
 higgs_32ratio_can->cd();
-higgs_efficiencies_32ratio_biggraph->Draw("ACP");
+higgs_efficiencies_32ratio_biggraph->Draw("ALP");
 leg_higgs_32ratio->Draw();
+radius_text->Draw();
 higgs_efficiencies_32ratio_biggraph->SetMinimum(0.5);     
 higgs_efficiencies_32ratio_biggraph->SetMaximum(1.5);
-higgs_efficiencies_32ratio_biggraph->SetTitle("Ratio of 3-jettiness/2-jettiness Higgs Efficiencies (R_{0} = 0.5, R_{cut} = 1.0)");
-higgs_efficiencies_32ratio_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+higgs_efficiencies_32ratio_biggraph->SetTitle("Ratio of 3-jettiness/2-jettiness Higgs higgs_efficiencies_32ratio");
+higgs_efficiencies_32ratio_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 higgs_efficiencies_32ratio_biggraph->GetYaxis()->SetTitle("3-jet eff/2-jet eff");
 higgs_efficiencies_32ratio_biggraph->GetYaxis()->SetTitleOffset(1.3);
 higgs_32ratio_can->Write();
-higgs_32ratio_can->Print("higgs_efficiencies_32ratio.eps", "eps");
+higgs_32ratio_can->Print("higgs2bbstudy_plots/higgs_efficiencies_32ratio.eps", "eps");
+
+TCanvas *higgs_2jets_combined_can = new TCanvas("higgs_2jets_combined_can", "higgs_2jets_combined_can", 800, 600);
+higgs_2jets_combined_can->cd();
+higgs_efficiencies_2jets_combined_biggraph->Draw("ALP");
+leg_higgs_2jets_combined->Draw();
+radius_text->Draw();
+merging_point->Draw();
+higgs_efficiencies_2jets_combined_biggraph->SetMinimum(0.0);     
+higgs_efficiencies_2jets_combined_biggraph->SetMaximum(1.0);
+higgs_efficiencies_2jets_combined_biggraph->SetTitle("Higgs Efficiencies for 2-jettiness + Dist. Cut");
+higgs_efficiencies_2jets_combined_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
+higgs_efficiencies_2jets_combined_biggraph->GetYaxis()->SetTitle("% mass 100-150");
+higgs_efficiencies_2jets_combined_biggraph->GetYaxis()->SetTitleOffset(1.3);
+higgs_2jets_combined_can->Write();
+higgs_2jets_combined_can->Print("higgs2bbstudy_plots/higgs_efficiencies_2jets_combined.eps", "eps");
+
 
 TCanvas *angulardiff_1jet_can = new TCanvas("angulardiff_1jet_can", "angulardiff_1jet_can", 800, 600);
 angulardiff_1jet_can->cd();
-angulardiff_1jet_biggraph->Draw("ACP");
+angulardiff_1jet_biggraph->Draw("ALP");
 leg_angulardiff_1jet->Draw();
+radius_text->Draw();
 angulardiff_1jet_biggraph->SetMinimum(0.);
 angulardiff_1jet_biggraph->SetMaximum(0.25);
 angulardiff_1jet_biggraph->SetTitle("Distance between 1-jettiness jet and closest 2-jettiness jet");
-angulardiff_1jet_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+angulardiff_1jet_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 angulardiff_1jet_biggraph->GetYaxis()->SetTitle("Angular Distance");
 angulardiff_1jet_biggraph->GetYaxis()->SetTitleOffset(1.3);
 angulardiff_1jet_can->Write();
-angulardiff_1jet_can->Print("angulardiff_1jet.eps", "eps");
+angulardiff_1jet_can->Print("higgs2bbstudy_plots/angulardiff_1jet.eps", "eps");
 
 
 TCanvas *angulardiff_prop_1jet_can = new TCanvas("angulardiff_prop_1jet_can", "angulardiff_prop_1jet_can", 800, 600);
 angulardiff_prop_1jet_can->cd();
-angulardiff_prop_1jet_biggraph->Draw("ACP");
+angulardiff_prop_1jet_biggraph->Draw("ALP");
 leg_angulardiff_prop_1jet->Draw();
+radius_text->Draw();
 angulardiff_prop_1jet_biggraph->SetMinimum(0.);
 angulardiff_prop_1jet_biggraph->SetMaximum(1.0);
 angulardiff_prop_1jet_biggraph->SetTitle("Proportion of 1-jettiness jets aligned with 2-jettiness jets");
-angulardiff_prop_1jet_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+angulardiff_prop_1jet_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 angulardiff_prop_1jet_biggraph->GetYaxis()->SetTitle("Angular Distance");
 angulardiff_prop_1jet_biggraph->GetYaxis()->SetTitleOffset(1.3);
 angulardiff_prop_1jet_can->Write();
-angulardiff_prop_1jet_can->Print("angulardiff_prop_1jet.eps", "eps");
+angulardiff_prop_1jet_can->Print("higgs2bbstudy_plots/angulardiff_prop_1jet.eps", "eps");
 
 TCanvas *angulardiff_2jets_can = new TCanvas("angulardiff_2jets_can", "angulardiff_2jets_can", 800, 600);
 angulardiff_2jets_can->cd();
-angulardiff_2jets_biggraph->Draw("ACP");
+angulardiff_2jets_biggraph->Draw("ALP");
 leg_angulardiff_2jets->Draw();
+radius_text->Draw();
 angulardiff_2jets_biggraph->SetMinimum(0.);
 angulardiff_2jets_biggraph->SetMaximum(4.0);
 angulardiff_2jets_biggraph->SetTitle("Angular Distance between two jets");
-angulardiff_2jets_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
+angulardiff_2jets_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
 angulardiff_2jets_biggraph->GetYaxis()->SetTitle("Angular Distance");
 angulardiff_2jets_biggraph->GetYaxis()->SetTitleOffset(1.3);
 angulardiff_2jets_can->Write();
-angulardiff_2jets_can->Print("angulardiff_2jets.eps", "eps");
+angulardiff_2jets_can->Print("higgs2bbstudy_plots/angulardiff_2jets.eps", "eps");
 
 TCanvas* jet_distance_diff_1jet_can = new TCanvas("jet_distance_diff_1jet_can", "jet_distance_diff_1jet_can", 800, 600);
 jet_distance_diff_1jet_can->cd();
-jet_distance_diff_1jet_biggraph->Draw("ACP");
-leg_jet_distance_diff_1jet->Draw();
-jet_distance_diff_1jet_biggraph->SetMinimum(0.);
-jet_distance_diff_1jet_biggraph->SetMaximum(0.1);
-jet_distance_diff_1jet_biggraph->SetTitle("Avg Angular Distance between AKT and 1-jet");
-jet_distance_diff_1jet_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
-jet_distance_diff_1jet_biggraph->GetYaxis()->SetTitle("Avg Angular Distance");
-jet_distance_diff_1jet_biggraph->GetYaxis()->SetTitleOffset(1.3);
+
+for (int B = 0; B < n_betas; B++) {
+  TH2* jetphi_violin = new TH2F("jetphi_violin", "Violin plot", n_perps, 0, 1000, 100, 0, 1.0);
+
+  for (int i_perp = 0; i_perp < n_perps; i_perp++) {
+    TH1 *jetphi_diff = (TH1*)jetphi_diff_allpt_allbeta.At(4*i_perp + B);
+    for (int n = 0; n < jetphi_diff->GetNbinsX(); n++) {
+      jetphi_violin->Fill(perplist[i_perp], jetphi_diff->GetBinContent(n));
+    }
+  }
+  jetphi_violin->SetMarkerStyle(20);
+  jetphi_violin->SetMarkerSize(0.5);
+  jetphi_violin->SetFillStyle(1001);
+  if (B == 2) {
+    jetphi_violin->SetFillColor(kRed);
+    jetphi_violin->SetMarkerColor(kRed);
+    jetphi_violin->Draw("VIOLIN");
+  }
+  if (B == 3) {
+    jetphi_violin->SetFillColor(kBlue);
+    jetphi_violin->SetMarkerColor(kBlue);
+    jetphi_violin->Draw("VIOLIN SAMES");
+  }
+}
+// jet_distance_diff_1jet_biggraph->Draw("ALP");
+// leg_jet_distance_diff_1jet->Draw();
+// radius_text->Draw();
+// jet_distance_diff_1jet_biggraph->SetMinimum(0.);
+// jet_distance_diff_1jet_biggraph->SetMaximum(0.1);
+// jet_distance_diff_1jet_biggraph->SetTitle("Avg Angular Distance between AKT and 1-jet");
+// jet_distance_diff_1jet_biggraph->GetXaxis()->SetTitle("p_{T}_{min} (GeV)");
+// jet_distance_diff_1jet_biggraph->GetYaxis()->SetTitle("Avg Angular Distance");
+// jet_distance_diff_1jet_biggraph->GetYaxis()->SetTitleOffset(1.3);
 jet_distance_diff_1jet_can->Write();
-jet_distance_diff_1jet_can->Print("jet_distance_diff_1jet.eps", "eps");
+jet_distance_diff_1jet_can->Print("higgs2bbstudy_plots/jet_distance_diff_1jet.eps", "eps");
 
 delete outFile;
 

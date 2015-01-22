@@ -22,6 +22,7 @@
 #include "fastjet/contrib/NjettinessPlugin.hh"
 
 //Root headers
+#include "TROOT.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "TGraph.h"
@@ -44,42 +45,42 @@ using namespace Pythia8;
 using namespace fastjet;
 using namespace fastjet::contrib;
 
-class GeneralERecombiner : public fastjet::JetDefinition::Recombiner {
-public:
-// Constructor to choose value of alpha (defaulted to 1 for normal pT sum)
-  GeneralERecombiner(double delta) : _delta(delta) {}
+// class GeneralERecombiner : public fastjet::JetDefinition::Recombiner {
+// public:
+// // Constructor to choose value of alpha (defaulted to 1 for normal pT sum)
+//   GeneralERecombiner(double delta) : _delta(delta) {}
   
-  std::string description() const {
-     return "General E-scheme recombination";
-  }
+//   std::string description() const {
+//      return "General E-scheme recombination";
+//   }
   
-  void recombine(const fastjet::PseudoJet & pa, const fastjet::PseudoJet & pb, fastjet::PseudoJet & pab) const {
+//   void recombine(const fastjet::PseudoJet & pa, const fastjet::PseudoJet & pb, fastjet::PseudoJet & pab) const {
 
-    double weighta = pow(pa.perp(), _delta);
-    double weightb = pow(pb.perp(), _delta);
+//     double weighta = pow(pa.perp(), _delta);
+//     double weightb = pow(pb.perp(), _delta);
 
-    double perp_ab = pa.perp() + pb.perp();
-    if (perp_ab != 0.0) { // weights also non-zero...
-      double y_ab = (weighta * pa.rap() + weightb * pb.rap())/(weighta+weightb);
+//     double perp_ab = pa.perp() + pb.perp();
+//     if (perp_ab != 0.0) { // weights also non-zero...
+//       double y_ab = (weighta * pa.rap() + weightb * pb.rap())/(weighta+weightb);
       
-      // take care with periodicity in phi...
-      double phi_a = pa.phi(), phi_b = pb.phi();
-      if (phi_a - phi_b > pi)  phi_b += twopi;
-      if (phi_a - phi_b < -pi) phi_b -= twopi;
-      double phi_ab = (weighta * phi_a + weightb * phi_b)/(weighta+weightb);
+//       // take care with periodicity in phi...
+//       double phi_a = pa.phi(), phi_b = pb.phi();
+//       if (phi_a - phi_b > pi)  phi_b += twopi;
+//       if (phi_a - phi_b < -pi) phi_b -= twopi;
+//       double phi_ab = (weighta * phi_a + weightb * phi_b)/(weighta+weightb);
       
-      pab.reset_PtYPhiM(perp_ab, y_ab, phi_ab);
+//       pab.reset_PtYPhiM(perp_ab, y_ab, phi_ab);
 
-    }
-    else { // weights are zero
-      pab.reset(0.0,0.0,0.0,0.0);
-    }
+//     }
+//     else { // weights are zero
+//       pab.reset(0.0,0.0,0.0,0.0);
+//     }
 
-  }
+//   }
 
-private:
-  double _delta;
-};
+// private:
+//   double _delta;
+// };
 
 int next_comb(int comb[], int k, int n) {
   int i = k - 1;
@@ -122,7 +123,7 @@ JetInformation findMinAxes(vector<PseudoJet> input_particles, vector<PseudoJet> 
   NjettinessPlugin njet_plugin_manual(njettiness, Manual_Axes(), UnnormalizedCutoffMeasure(beta, Rcutoff));
   JetDefinition njet_def_manual(&njet_plugin_manual);
 
-  double min_manual_tau = 10000;
+  double min_manual_tau = std::numeric_limits<double>::max();
   do {
     vector<int> axis_indices;
     vector<PseudoJet> six_axes;
@@ -133,7 +134,7 @@ JetInformation findMinAxes(vector<PseudoJet> input_particles, vector<PseudoJet> 
       six_axes.push_back(starting_axes[axis_indices[j]]);
     }
 
-    double manual_tau = 10000;
+    double manual_tau = std::numeric_limits<double>::max();
     if (six_axes.size() == njettiness) {
       njet_plugin_manual.setAxes(six_axes);
       ClusterSequence njet_cluster_manual(input_particles, njet_def_manual);
@@ -229,6 +230,31 @@ int main(int argc, char* argv[]){
   // ifstream inputStream("/home/tjwilk/Physics/thaler_urop/BOOST_samples/herwig65-lhc7-ttbar2hadrons-pt0500-0600.UW"); // Input File Name
   // ifstream inputStream("/home/tjwilk/Physics/thaler_urop/BOOST_samples/herwig65-lhc7-dijets-pt0500-0600.UW"); // Input File Name
 
+  TStyle *plain  = new TStyle("Plain","plain");
+  plain->SetLegendBorderSize(0);
+  plain->SetLegendFillColor(0);
+  plain->SetTitleFont(132, "a");
+  plain->SetTitleFont(132, "xy");
+  plain->SetLegendFont(132);
+  // plain->SetTextSize(0.05);
+  plain->SetLabelSize(0.04, "xy");
+  // plain->SetLabelOffset(0.003, "xy");
+  plain->SetTitleSize(0.06, "a");
+  plain->SetTitleSize(0.05, "xy");
+  plain->SetPadLeftMargin(0.12);
+  plain->SetPadBottomMargin(0.12);
+  plain->SetTitleOffset(1.25, "y");
+  plain->SetHistLineWidth(3);
+
+  // plain->SetLegendSize(12);
+  plain->SetTitleBorderSize(0);
+  plain->SetTitleX(0.1f);
+  plain->SetTitleW(0.8f);
+  plain->SetOptStat(0);
+  plain->cd();
+
+  gROOT->SetStyle("plain");
+
   double Rcutoff = 0.6;
   double power;
   double delta;
@@ -243,6 +269,8 @@ int main(int argc, char* argv[]){
   const int n_event = 1000; // # of events to be analyzed   
   const int n_powers = 32;
   const int n_deltas = 25;
+  // const int n_powers = 5;
+  // const int n_deltas = 5;
   const int n_betas = 8;
 
   const double infinity = std::numeric_limits<double>::max();
@@ -438,26 +466,30 @@ int main(int argc, char* argv[]){
           UnnormalizedCutoffMeasure measure_function = UnnormalizedCutoffMeasure(beta, Rcutoff);
           // GeometricCutoffMeasure measure_function = GeometricCutoffMeasure(beta, Rcutoff);
 
-          NjettinessPlugin njet_plugin_genrecomb(initial_axes_num, Manual_Axes(), measure_function);
-          JetDefinition njet_def_genrecomb(&njet_plugin_genrecomb);
-          njet_plugin_genrecomb.setAxes(exclusiveJets);
-          ClusterSequence njet_cluster_genrecomb(jet_constituents, njet_def_genrecomb);
-          const NjettinessExtras *extras_genrecomb = njettiness_extras(njet_cluster_genrecomb);
-          vector<PseudoJet> axes_genrecomb = extras_genrecomb->axes();
-          vector<PseudoJet> jets_genrecomb = extras_genrecomb->jets();
+          // NjettinessPlugin njet_plugin_genrecomb(initial_axes_num, Manual_Axes(), measure_function);
+          // JetDefinition njet_def_genrecomb(&njet_plugin_genrecomb);
+          // njet_plugin_genrecomb.setAxes(exclusiveJets);
+          // ClusterSequence njet_cluster_genrecomb(jet_constituents, njet_def_genrecomb);
+          // const NjettinessExtras *extras_genrecomb = njettiness_extras(njet_cluster_genrecomb);
+          // vector<PseudoJet> axes_genrecomb = extras_genrecomb->axes();
+          // vector<PseudoJet> jets_genrecomb = extras_genrecomb->jets();
 
-          JetInformation min_manual_set = findMinAxes(jet_constituents, axes_genrecomb, njettiness, beta, Rcutoff);
-          vector<PseudoJet> min_manual_axes = min_manual_set.axes;
-          double min_manual_tau = min_manual_set.tau;
+          // JetInformation min_manual_set = findMinAxes(jet_constituents, axes_genrecomb, njettiness, beta, Rcutoff);
+          // vector<PseudoJet> min_manual_axes = min_manual_set.axes;
+          // double min_manual_tau = min_manual_set.tau;
 
           NjettinessPlugin njet_plugin_min_manual(njettiness, Manual_Axes(), measure_function);
           JetDefinition njet_def_min_manual(&njet_plugin_min_manual);
-          njet_plugin_min_manual.setAxes(min_manual_axes);
+          // njet_plugin_min_manual.setAxes(min_manual_axes);
+          njet_plugin_min_manual.setAxes(exclusiveJets);
           ClusterSequence njet_cluster_min_manual(jet_constituents, njet_def_min_manual);
           const NjettinessExtras *extras_min_manual = njettiness_extras(njet_cluster_min_manual);
           vector<PseudoJet> min_manual_jets = extras_min_manual->jets();
+          double min_manual_tau = extras_min_manual->totalTau();
 
           if (i_sample == 0) {
+            // cout << min_manual_tau << endl;
+
             mean_tau6_ttbar_values[i_beta] += min_manual_tau;
             meansq_tau6_ttbar_values[i_beta] += min_manual_tau*min_manual_tau;
             rootmean_tau6_ttbar_values[i_beta] += TMath::Sqrt(min_manual_tau);
@@ -720,7 +752,6 @@ int main(int argc, char* argv[]){
 
   for (int i_beta = 0; i_beta < n_betas; i_beta++) {
 
-
     double mean_value = (double)mean_tau6_ttbar_values[i_beta]/n_event;
     double mean_tau3_value = (double)mean_tau3_ttbar_values[i_beta]/total_ttbar_jets;
     if (mean_value < min_njet_values[i_beta]) {
@@ -873,37 +904,60 @@ int main(int argc, char* argv[]){
   TMultiGraph *percent_diff_hists = new TMultiGraph();
   TCanvas *percent_diff_hists_can = new TCanvas("percent_diff_hists_can", "percent_diff_hists", 600, 600);
   percent_diff_hists_can->cd();
-  percent_diff_mean_plot->SetMarkerStyle(3);
+  // percent_diff_mean_plot->SetMarkerStyle(3);
   percent_diff_mean_plot->SetMarkerSize(2);
-  percent_diff_mean_plot->SetMarkerColor(kBlack);
-  percent_diff_meansq_plot->SetMarkerStyle(3);
+  // percent_diff_mean_plot->SetMarkerColor(kBlack);
+  percent_diff_mean_plot->SetLineColor(kRed);
+  percent_diff_mean_plot->SetLineWidth(3);
+  // percent_diff_meansq_plot->SetMarkerStyle(3);
   percent_diff_meansq_plot->SetMarkerSize(2);
-  percent_diff_meansq_plot->SetMarkerColor(kBlue);
-  percent_diff_rootmean_plot->SetMarkerStyle(3);
+  // percent_diff_meansq_plot->SetMarkerColor(kBlue);
+  percent_diff_meansq_plot->SetLineColor(kOrange);
+  percent_diff_meansq_plot->SetLineWidth(3);
+  // percent_diff_rootmean_plot->SetMarkerStyle(3);
   percent_diff_rootmean_plot->SetMarkerSize(2);
-  percent_diff_rootmean_plot->SetMarkerColor(kGreen);
-  percent_diff_median_plot->SetMarkerStyle(3);
+  // percent_diff_rootmean_plot->SetMarkerColor(kGreen);
+  percent_diff_rootmean_plot->SetLineColor(kGreen);
+  percent_diff_rootmean_plot->SetLineWidth(3);
+  // percent_diff_median_plot->SetMarkerStyle(3);
   percent_diff_median_plot->SetMarkerSize(2);
-  percent_diff_median_plot->SetMarkerColor(kRed);
+  // percent_diff_median_plot->SetMarkerColor(kRed);
+  percent_diff_median_plot->SetLineColor(kBlue);
+  percent_diff_median_plot->SetLineWidth(3);
+  // percent_diff_mean_plot->GetHistogram()->SetMinimum(-1.0);
+  // percent_diff_mean_plot->GetHistogram()->SetMaximum(1.0);
+  // percent_diff_meansq_plot->GetHistogram()->SetMinimum(-1.0);
+  // percent_diff_meansq_plot->GetHistogram()->SetMaximum(1.0);
+  // percent_diff_rootmean_plot->GetHistogram()->SetMinimum(-1.0);
+  // percent_diff_rootmean_plot->GetHistogram()->SetMaximum(1.0);
+  // percent_diff_median_plot->GetHistogram()->SetMinimum(-1.0);
+  // percent_diff_median_plot->GetHistogram()->SetMaximum(1.0);
   percent_diff_hists->Add(percent_diff_mean_plot);
-  percent_diff_hists->Add(percent_diff_meansq_plot);
-  percent_diff_hists->Add(percent_diff_rootmean_plot);
   percent_diff_hists->Add(percent_diff_median_plot);
-  percent_diff_hists->Draw("AP");
+  // percent_diff_hists->Add(percent_diff_meansq_plot);
+  // percent_diff_hists->Add(percent_diff_rootmean_plot);
+  percent_diff_hists->SetMinimum(-0.5);
+  percent_diff_hists->SetMaximum(0.5);
+  percent_diff_hists->Draw("AL");
+  percent_diff_hists->SetTitle("% Difference Between Minimum and ``Optimal'' #tau_{6}");
   percent_diff_hists->GetXaxis()->SetTitle("#beta");
-  percent_diff_hists->GetYaxis()->SetTitle("percent diff");
-  TLegend *leg_percent_diff = new TLegend(0.1, 0.7, 0.3, 0.9);
-  leg_percent_diff->AddEntry(percent_diff_mean_plot, "Mean (Black)", "L");
-  leg_percent_diff->AddEntry(percent_diff_meansq_plot, "Mean^{2} (Blue)", "L");
-  leg_percent_diff->AddEntry(percent_diff_rootmean_plot, "#sqrt{Mean} (Green)", "L");
-  leg_percent_diff->AddEntry(percent_diff_median_plot, "Median (Red)", "L");
+  percent_diff_hists->GetYaxis()->SetTitle("% difference");
+  TLegend *leg_percent_diff = new TLegend(0.14, 0.7, 0.4, 0.88);
+  leg_percent_diff->SetFillColor(kWhite);
+  leg_percent_diff->SetLineColor(kWhite);
+  leg_percent_diff->AddEntry(percent_diff_mean_plot, "Mean", "L");
+  // leg_percent_diff->AddEntry(percent_diff_meansq_plot, "Mean^{2}", "L");
+  // leg_percent_diff->AddEntry(percent_diff_rootmean_plot, "#sqrt{Mean}", "L");
+  leg_percent_diff->AddEntry(percent_diff_median_plot, "Median", "L");
   leg_percent_diff->Draw();
   percent_diff_hists_can->Write();
+  percent_diff_hists_can->Print("percentdiff_tau6.eps", "eps");
+
 
   TF1 *beta_delta_func = new TF1("beta_delta_func", "(x <= 1)*100 + (x > 1)*1/(x-1)", 0, 10);
   TF1 *beta_power_func = new TF1("beta_power_func", "1/x", 0, 10);
-  beta_delta_func->SetLineColor(kRed);
-  beta_power_func->SetLineColor(kRed);
+  beta_delta_func->SetLineColor(kBlack);
+  beta_power_func->SetLineColor(kBlack);
 
   // TGraph *min_beta_delta = new TGraph(n_betas, min_beta_values, min_delta_values);
   // TGraph *min_beta_power = new TGraph(n_betas, min_beta_values, min_power_values);
@@ -925,69 +979,96 @@ int main(int argc, char* argv[]){
 
   TMultiGraph *min_tau6_values_delta = new TMultiGraph(); 
   TMultiGraph *min_tau6_values_power = new TMultiGraph(); 
-  min_tau6_values_delta->SetTitle("#beta vs #delta (#tau_{6})");
-  min_tau6_values_power->SetTitle("#beta vs power (#tau_{6})");
-  min_beta_delta->SetMarkerStyle(3);
-  min_beta_power->SetMarkerStyle(3);
+  min_tau6_values_delta->SetTitle("#beta and #delta for Minimum #tau_{6}");
+  min_tau6_values_power->SetTitle("#beta and p for Minimum #tau_{6}");
+  // min_beta_delta->SetMarkerStyle(3);
+  // min_beta_power->SetMarkerStyle(3);
   min_beta_delta->SetMarkerSize(2);
   min_beta_power->SetMarkerSize(2);
-  min_beta_delta_meansq->SetMarkerStyle(3);
-  min_beta_power_meansq->SetMarkerStyle(3);
-  min_beta_delta_meansq->SetMarkerSize(2);
-  min_beta_power_meansq->SetMarkerSize(2);
-  min_beta_delta_meansq->SetMarkerColor(kBlue);
-  min_beta_power_meansq->SetMarkerColor(kBlue);
-  min_beta_delta_rootmean->SetMarkerStyle(3);
-  min_beta_power_rootmean->SetMarkerStyle(3);
-  min_beta_delta_rootmean->SetMarkerSize(2);
-  min_beta_power_rootmean->SetMarkerSize(2);
-  min_beta_delta_rootmean->SetMarkerColor(kGreen);
-  min_beta_power_rootmean->SetMarkerColor(kGreen);
-  min_beta_delta_median->SetMarkerStyle(3);
-  min_beta_power_median->SetMarkerStyle(3);
+  min_beta_delta->SetLineColor(kRed);
+  min_beta_power->SetLineColor(kRed);
+  min_beta_delta->SetLineWidth(3);
+  min_beta_power->SetLineWidth(3);
+
+
+  // min_beta_delta_median->SetMarkerStyle(3);
+  // min_beta_power_median->SetMarkerStyle(3);
   min_beta_delta_median->SetMarkerSize(2);
   min_beta_power_median->SetMarkerSize(2);
-  min_beta_delta_median->SetMarkerColor(kRed);
-  min_beta_power_median->SetMarkerColor(kRed);
+  // min_beta_delta_median->SetMarkerColor(kRed);
+  // min_beta_power_median->SetMarkerColor(kRed);
+  min_beta_delta_median->SetLineColor(kBlue);
+  min_beta_power_median->SetLineColor(kBlue);
+  min_beta_delta_median->SetLineWidth(3);
+  min_beta_power_median->SetLineWidth(3);
+
+  // min_beta_delta_meansq->SetMarkerStyle(3);
+  // min_beta_power_meansq->SetMarkerStyle(3);
+  min_beta_delta_meansq->SetMarkerSize(2);
+  min_beta_power_meansq->SetMarkerSize(2);
+  // min_beta_delta_meansq->SetMarkerColor(kBlue);
+  // min_beta_power_meansq->SetMarkerColor(kBlue);
+  min_beta_delta_meansq->SetLineColor(kOrange);
+  min_beta_power_meansq->SetLineColor(kOrange);
+  min_beta_delta_meansq->SetLineWidth(3);
+  min_beta_power_meansq->SetLineWidth(3);
+  // min_beta_delta_rootmean->SetMarkerStyle(3);
+  // min_beta_power_rootmean->SetMarkerStyle(3);
+  min_beta_delta_rootmean->SetMarkerSize(2);
+  min_beta_power_rootmean->SetMarkerSize(2);
+  // min_beta_delta_rootmean->SetMarkerColor(kGreen);
+  // min_beta_power_rootmean->SetMarkerColor(kGreen);
+  min_beta_delta_rootmean->SetLineColor(kGreen);
+  min_beta_power_rootmean->SetLineColor(kGreen);
+  min_beta_delta_rootmean->SetLineWidth(3);
+  min_beta_power_rootmean->SetLineWidth(3);
   // min_beta_delta->Write();
   // min_beta_power->Write();
 
   TCanvas* beta_delta_can = new TCanvas("beta_delta_can", "beta_delta_can", 600, 600);
   beta_delta_can->cd();
   min_tau6_values_delta->Add(min_beta_delta);
-  min_tau6_values_delta->Add(min_beta_delta_meansq);
-  min_tau6_values_delta->Add(min_beta_delta_rootmean);
   min_tau6_values_delta->Add(min_beta_delta_median);
-  min_tau6_values_delta->Draw("AP");
+  // min_tau6_values_delta->Add(min_beta_delta_meansq);
+  // min_tau6_values_delta->Add(min_beta_delta_rootmean);
+  min_tau6_values_delta->Draw("AL");
   beta_delta_func->Draw("SAME");
   min_tau6_values_delta->GetXaxis()->SetTitle("#beta");
   min_tau6_values_delta->GetYaxis()->SetTitle("#delta");
-  TLegend *leg_beta_delta = new TLegend(0.1, 0.7, 0.3, 0.9);
-  leg_beta_delta->AddEntry(min_beta_delta, "Mean (Black)", "L");
-  leg_beta_delta->AddEntry(min_beta_delta_meansq, "Mean^{2} (Blue)", "L");
-  leg_beta_delta->AddEntry(min_beta_delta_rootmean, "#sqrt{Mean} (Green)", "L");
-  leg_beta_delta->AddEntry(min_beta_delta_median, "Median (Red)", "L");
+  min_tau6_values_delta->SetMaximum(10);
+  TLegend *leg_beta_delta = new TLegend(0.55, 0.55, 0.88, 0.88);
+  leg_beta_delta->SetFillColor(kWhite);
+  leg_beta_delta->SetLineColor(kWhite);
+  leg_beta_delta->AddEntry(min_beta_delta, "Mean", "L");
+  leg_beta_delta->AddEntry(min_beta_delta_median, "Median", "L");
+  // leg_beta_delta->AddEntry(min_beta_delta_meansq, "Mean^{2}", "L");
+  // leg_beta_delta->AddEntry(min_beta_delta_rootmean, "#sqrt{Mean}", "L");
+  leg_beta_delta->AddEntry(beta_delta_func, "Prediction", "L");
   leg_beta_delta->Draw();
   beta_delta_can->Write();
+  beta_delta_can->Print("betavdelta_tau6.eps", "eps");
 
   TCanvas* beta_power_can = new TCanvas("beta_power_can", "beta_power_can", 600, 600);
   beta_power_can->cd();
   min_tau6_values_power->Add(min_beta_power);
-  min_tau6_values_power->Add(min_beta_power_meansq);
-  min_tau6_values_power->Add(min_beta_power_rootmean);
   min_tau6_values_power->Add(min_beta_power_median);
-  min_tau6_values_power->Draw("AP");
+  // min_tau6_values_power->Add(min_beta_power_meansq);
+  // min_tau6_values_power->Add(min_beta_power_rootmean);
+  min_tau6_values_power->Draw("AL");
   beta_power_func->Draw("SAME");
   min_tau6_values_power->GetXaxis()->SetTitle("#beta");
   min_tau6_values_power->GetYaxis()->SetTitle("power");
-  TLegend *leg_beta_power = new TLegend(0.1, 0.7, 0.3, 0.9);
-  leg_beta_power->AddEntry(min_beta_power, "Mean (Black)", "L");
-  leg_beta_power->AddEntry(min_beta_power_meansq, "Mean^{2} (Blue)", "L");
-  leg_beta_power->AddEntry(min_beta_power_rootmean, "#sqrt{Mean} (Green)", "L");
-  leg_beta_power->AddEntry(min_beta_power_median, "Median (Red)", "L");
+  TLegend *leg_beta_power = new TLegend(0.55, 0.55, 0.88, 0.88);
+  leg_beta_power->SetFillColor(kWhite);
+  leg_beta_power->SetLineColor(kWhite);
+  leg_beta_power->AddEntry(min_beta_power, "Mean", "L");
+  leg_beta_power->AddEntry(min_beta_power_median, "Median", "L");
+  // leg_beta_power->AddEntry(min_beta_power_meansq, "Mean^{2}", "L");
+  // leg_beta_power->AddEntry(min_beta_power_rootmean, "#sqrt{Mean}", "L");
+  leg_beta_power->AddEntry(beta_power_func, "Prediction", "L");  
   leg_beta_power->Draw();
   beta_power_can->Write();
-
+  beta_power_can->Print("betavpower_tau6.eps", "eps");
 
   double optimal_njet_tau3_mean[n_betas] = {135.389, 71.2266, 26.2456, 11.924, 6.28232, 2.31148, 1.05438, 0.0302973};
   double optimal_njet_tau3_meansq[n_betas] = {20401.3, 5864.69, 896.665, 206.831, 63.0371, 10.1063, 2.34966, 0.00333089};
@@ -1014,32 +1095,49 @@ int main(int argc, char* argv[]){
   TMultiGraph *percent_diff_tau3_hists = new TMultiGraph();
   TCanvas *percent_diff_tau3_hists_can = new TCanvas("percent_diff_tau3_hists_can", "percent_diff_tau3_hists", 600, 600);
   percent_diff_tau3_hists_can->cd();
-  percent_diff_tau3_mean_plot->SetMarkerStyle(3);
+  // percent_diff_tau3_mean_plot->SetMarkerStyle(3);
   percent_diff_tau3_mean_plot->SetMarkerSize(2);
-  percent_diff_tau3_mean_plot->SetMarkerColor(kBlack);
-  percent_diff_tau3_meansq_plot->SetMarkerStyle(3);
-  percent_diff_tau3_meansq_plot->SetMarkerSize(2);
-  percent_diff_tau3_meansq_plot->SetMarkerColor(kBlue);
-  percent_diff_tau3_rootmean_plot->SetMarkerStyle(3);
-  percent_diff_tau3_rootmean_plot->SetMarkerSize(2);
-  percent_diff_tau3_rootmean_plot->SetMarkerColor(kGreen);
-  percent_diff_tau3_median_plot->SetMarkerStyle(3);
+  // percent_diff_tau3_mean_plot->SetMarkerColor(kBlack);
+  percent_diff_tau3_mean_plot->SetLineColor(kRed);
+  percent_diff_tau3_mean_plot->SetLineWidth(3);
   percent_diff_tau3_median_plot->SetMarkerSize(2);
-  percent_diff_tau3_median_plot->SetMarkerColor(kRed);
+  // percent_diff_tau3_median_plot->SetMarkerColor(kRed);
+  // percent_diff_tau3_median_plot->SetLineColor(kOrange);
+  percent_diff_tau3_median_plot->SetLineColor(kBlue);
+  percent_diff_tau3_median_plot->SetLineWidth(3);
+  // percent_diff_tau3_meansq_plot->SetMarkerStyle(3);
+  percent_diff_tau3_meansq_plot->SetMarkerSize(2);
+  // percent_diff_tau3_meansq_plot->SetMarkerColor(kBlue);
+  percent_diff_tau3_meansq_plot->SetLineColor(kOrange);
+  percent_diff_tau3_meansq_plot->SetLineWidth(3);
+  // percent_diff_tau3_rootmean_plot->SetMarkerStyle(3);
+  percent_diff_tau3_rootmean_plot->SetMarkerSize(2);
+  // percent_diff_tau3_rootmean_plot->SetMarkerColor(kGreen);
+  percent_diff_tau3_rootmean_plot->SetLineColor(kGreen);
+  percent_diff_tau3_rootmean_plot->SetLineWidth(3);
+  // percent_diff_tau3_median_plot->SetMarkerStyle(3);
+
   percent_diff_tau3_hists->Add(percent_diff_tau3_mean_plot);
-  percent_diff_tau3_hists->Add(percent_diff_tau3_meansq_plot);
-  percent_diff_tau3_hists->Add(percent_diff_tau3_rootmean_plot);
   percent_diff_tau3_hists->Add(percent_diff_tau3_median_plot);
-  percent_diff_tau3_hists->Draw("AP");
+  // percent_diff_tau3_hists->Add(percent_diff_tau3_meansq_plot);
+  // percent_diff_tau3_hists->Add(percent_diff_tau3_rootmean_plot);
+  percent_diff_tau3_hists->SetMinimum(-0.5);
+  percent_diff_tau3_hists->SetMaximum(0.5);
+  percent_diff_tau3_hists->Draw("AL");
+  percent_diff_tau3_hists->SetTitle("% Difference Between Minimum and ``Optimal'' #tau_{3}");
   percent_diff_tau3_hists->GetXaxis()->SetTitle("#beta");
-  percent_diff_tau3_hists->GetYaxis()->SetTitle("percent diff_tau3");
-  TLegend *leg_percent_diff_tau3 = new TLegend(0.1, 0.7, 0.3, 0.9);
-  leg_percent_diff_tau3->AddEntry(percent_diff_tau3_mean_plot, "Mean (Black)", "L");
-  leg_percent_diff_tau3->AddEntry(percent_diff_tau3_meansq_plot, "Mean^{2} (Blue)", "L");
-  leg_percent_diff_tau3->AddEntry(percent_diff_tau3_rootmean_plot, "#sqrt{Mean} (Green)", "L");
-  leg_percent_diff_tau3->AddEntry(percent_diff_tau3_median_plot, "Median (Red)", "L");
+  percent_diff_tau3_hists->GetYaxis()->SetTitle("% difference");
+  percent_diff_tau3_hists->GetYaxis()->SetLimits(-0.5, 0.5);
+  TLegend *leg_percent_diff_tau3 = new TLegend(0.14, 0.7, 0.4, 0.88);
+  leg_percent_diff_tau3->SetFillColor(kWhite);
+  leg_percent_diff_tau3->SetLineColor(kWhite);
+  leg_percent_diff_tau3->AddEntry(percent_diff_tau3_mean_plot, "Mean", "L");
+  leg_percent_diff_tau3->AddEntry(percent_diff_tau3_median_plot, "Median", "L");
+  // leg_percent_diff_tau3->AddEntry(percent_diff_tau3_meansq_plot, "Mean^{2}", "L");
+  // leg_percent_diff_tau3->AddEntry(percent_diff_tau3_rootmean_plot, "#sqrt{Mean}", "L");
   leg_percent_diff_tau3->Draw();
   percent_diff_tau3_hists_can->Write();
+  percent_diff_tau3_hists_can->Print("percentdiff_tau3.eps", "eps");
 
   TMultiGraph *min_tau3_values_delta = new TMultiGraph(); 
   TMultiGraph *min_tau3_values_power = new TMultiGraph(); 
@@ -1052,66 +1150,91 @@ int main(int argc, char* argv[]){
   TGraph *min_beta_tau3_delta_median = new TGraph(n_betas, min_beta_tau3_values_median, min_delta_values_median);
   TGraph *min_beta_tau3_power_median = new TGraph(n_betas, min_beta_tau3_values_median, min_power_values_median);
 
-  min_tau3_values_delta->SetTitle("#beta vs #delta (#tau_{3})");
-  min_tau3_values_power->SetTitle("#beta vs power (#tau_{3})");
-  min_beta_tau3_delta->SetMarkerStyle(3);
-  min_beta_tau3_power->SetMarkerStyle(3);
+  min_tau3_values_delta->SetTitle("#beta and #delta for Minimum #tau_{3}");
+  min_tau3_values_power->SetTitle("#beta and p for Minimum #tau_{3}");
+  // min_beta_tau3_delta->SetMarkerStyle(3);
+  // min_beta_tau3_power->SetMarkerStyle(3);
   min_beta_tau3_delta->SetMarkerSize(2);
   min_beta_tau3_power->SetMarkerSize(2);
-  min_beta_tau3_delta_meansq->SetMarkerStyle(3);
-  min_beta_tau3_power_meansq->SetMarkerStyle(3);
+  min_beta_tau3_delta->SetLineColor(kRed);
+  min_beta_tau3_power->SetLineColor(kRed);
+  min_beta_tau3_delta->SetLineWidth(3);
+  min_beta_tau3_power->SetLineWidth(3);
+  // min_beta_tau3_delta_meansq->SetMarkerStyle(3);
+  // min_beta_tau3_power_meansq->SetMarkerStyle(3);
   min_beta_tau3_delta_meansq->SetMarkerSize(2);
   min_beta_tau3_power_meansq->SetMarkerSize(2);
-  min_beta_tau3_delta_meansq->SetMarkerColor(kBlue);
-  min_beta_tau3_power_meansq->SetMarkerColor(kBlue);
-  min_beta_tau3_delta_rootmean->SetMarkerStyle(3);
-  min_beta_tau3_power_rootmean->SetMarkerStyle(3);
+  // min_beta_tau3_delta_meansq->SetMarkerColor(kBlue);
+  // min_beta_tau3_power_meansq->SetMarkerColor(kBlue);
+  min_beta_tau3_delta_meansq->SetLineColor(kOrange);
+  min_beta_tau3_power_meansq->SetLineColor(kOrange);
+  min_beta_tau3_delta_meansq->SetLineWidth(3);
+  min_beta_tau3_power_meansq->SetLineWidth(3);
+  // min_beta_tau3_delta_rootmean->SetMarkerStyle(3);
+  // min_beta_tau3_power_rootmean->SetMarkerStyle(3);
   min_beta_tau3_delta_rootmean->SetMarkerSize(2);
   min_beta_tau3_power_rootmean->SetMarkerSize(2);
-  min_beta_tau3_delta_rootmean->SetMarkerColor(kGreen);
-  min_beta_tau3_power_rootmean->SetMarkerColor(kGreen);
-  min_beta_tau3_delta_median->SetMarkerStyle(3);
-  min_beta_tau3_power_median->SetMarkerStyle(3);
+  // min_beta_tau3_delta_rootmean->SetMarkerColor(kGreen);
+  // min_beta_tau3_power_rootmean->SetMarkerColor(kGreen);
+  min_beta_tau3_delta_rootmean->SetLineColor(kGreen);
+  min_beta_tau3_power_rootmean->SetLineColor(kGreen);
+  min_beta_tau3_delta_rootmean->SetLineWidth(3);
+  min_beta_tau3_power_rootmean->SetLineWidth(3);
+  // min_beta_tau3_delta_median->SetMarkerStyle(3);
+  // min_beta_tau3_power_median->SetMarkerStyle(3);
   min_beta_tau3_delta_median->SetMarkerSize(2);
   min_beta_tau3_power_median->SetMarkerSize(2);
-  min_beta_tau3_delta_median->SetMarkerColor(kRed);
-  min_beta_tau3_power_median->SetMarkerColor(kRed);
+  // min_beta_tau3_delta_median->SetMarkerColor(kRed);
+  // min_beta_tau3_power_median->SetMarkerColor(kRed);
+  min_beta_tau3_delta_median->SetLineColor(kBlue);
+  min_beta_tau3_power_median->SetLineColor(kBlue);
+  min_beta_tau3_delta_median->SetLineWidth(3);
+  min_beta_tau3_power_median->SetLineWidth(3);
 
   TCanvas* beta_tau3_delta_can = new TCanvas("beta_tau3_delta_can", "beta_tau3_delta_can", 600, 600);
   beta_tau3_delta_can->cd();
   min_tau3_values_delta->Add(min_beta_tau3_delta);
-  min_tau3_values_delta->Add(min_beta_tau3_delta_meansq);
-  min_tau3_values_delta->Add(min_beta_tau3_delta_rootmean);
   min_tau3_values_delta->Add(min_beta_tau3_delta_median);
-  min_tau3_values_delta->Draw("AP");
+  // min_tau3_values_delta->Add(min_beta_tau3_delta_meansq);
+  // min_tau3_values_delta->Add(min_beta_tau3_delta_rootmean);
+  min_tau3_values_delta->Draw("AL");
   beta_delta_func->Draw("SAME");
   min_tau3_values_delta->GetXaxis()->SetTitle("#beta");
   min_tau3_values_delta->GetYaxis()->SetTitle("#delta");
-  TLegend *leg_beta_tau3_delta = new TLegend(0.1, 0.7, 0.3, 0.9);
-  leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta, "Mean (Black)", "L");
-  leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta_meansq, "Mean^{2} (Blue)", "L");
-  leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta_rootmean, "#sqrt{Mean} (Green)", "L");
-  leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta_median, "Median (Red)", "L");
+  min_tau3_values_delta->SetMaximum(10);
+  TLegend *leg_beta_tau3_delta = new TLegend(0.55, 0.55, 0.88, 0.88);
+  leg_beta_tau3_delta->SetFillColor(kWhite);
+  leg_beta_tau3_delta->SetLineColor(kWhite);
+  leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta, "Mean", "L");
+  leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta_median, "Median", "L");
+  // leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta_meansq, "Mean^{2}", "L");
+  // leg_beta_tau3_delta->AddEntry(min_beta_tau3_delta_rootmean, "#sqrt{Mean}", "L");
+  leg_beta_tau3_delta->AddEntry(beta_delta_func, "Prediction", "L");
   leg_beta_tau3_delta->Draw();
   beta_tau3_delta_can->Write();
+  beta_tau3_delta_can->Print("betavdelta_tau3.eps", "eps");
 
   TCanvas* beta_tau3_power_can = new TCanvas("beta_tau3_power_can", "beta_tau3_power_can", 600, 600);
   beta_tau3_power_can->cd();
   min_tau3_values_power->Add(min_beta_tau3_power);
-  min_tau3_values_power->Add(min_beta_tau3_power_meansq);
-  min_tau3_values_power->Add(min_beta_tau3_power_rootmean);
   min_tau3_values_power->Add(min_beta_tau3_power_median);
-  min_tau3_values_power->Draw("AP");
+  // min_tau3_values_power->Add(min_beta_tau3_power_meansq);
+  // min_tau3_values_power->Add(min_beta_tau3_power_rootmean);
+  min_tau3_values_power->Draw("AL");
   beta_power_func->Draw("SAME");
   min_tau3_values_power->GetXaxis()->SetTitle("#beta");
   min_tau3_values_power->GetYaxis()->SetTitle("power");
-  TLegend *leg_beta_tau3_power = new TLegend(0.1, 0.7, 0.3, 0.9);
-  leg_beta_tau3_power->AddEntry(min_beta_tau3_power, "Mean (Black)", "L");
-  leg_beta_tau3_power->AddEntry(min_beta_tau3_power_meansq, "Mean^{2} (Blue)", "L");
-  leg_beta_tau3_power->AddEntry(min_beta_tau3_power_rootmean, "#sqrt{Mean} (Green)", "L");
-  leg_beta_tau3_power->AddEntry(min_beta_tau3_power_median, "Median (Red)", "L");
+  TLegend *leg_beta_tau3_power = new TLegend(0.55, 0.55, 0.88, 0.88);
+  leg_beta_tau3_power->SetFillColor(kWhite);
+  leg_beta_tau3_power->SetLineColor(kWhite);
+  leg_beta_tau3_power->AddEntry(min_beta_tau3_power, "Mean", "L");
+  leg_beta_tau3_power->AddEntry(min_beta_tau3_power_median, "Median", "L");
+  // leg_beta_tau3_power->AddEntry(min_beta_tau3_power_meansq, "Mean^{2}", "L");
+  // leg_beta_tau3_power->AddEntry(min_beta_tau3_power_rootmean, "#sqrt{Mean}", "L");
+  leg_beta_tau3_power->AddEntry(beta_power_func, "Prediction", "L");
   leg_beta_tau3_power->Draw();
   beta_tau3_power_can->Write();
+  beta_tau3_power_can->Print("betavpower_tau3.eps", "eps");
 
   // for (int i = 0; i < mean_values.size(); i++) {
   //   cout << mean_values[i] << " & ";
