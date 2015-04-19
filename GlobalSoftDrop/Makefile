@@ -36,12 +36,12 @@ CXXFLAGS= -std=c++11 -O3 -Wall -Woverloaded-virtual -g -Wunused-parameter
 
 
 NAME=GlobalSoftDrop
-# NAME2=Nsubjettiness
-SRCS=GlobalSoftDrop.cc
-# SRCS+=Nsubjettiness.cc WinnerTakeAllRecombiner.cc
+NAME2=Nsubjettiness
+SRCS=/home/tjwilk/Physics/thaler_urop/GlobalSoftDrop/GlobalSoftDrop.cc
+SRCS+=/home/tjwilk/Physics/software/fjcontrib/Nsubjettiness/Nsubjettiness.cc 
 # EXAMPLES=
 INSTALLED_HEADERS=/home/tjwilk/Physics/thaler_urop/GlobalSoftDrop/GlobalSoftDrop.hh
-# INSTALLED_HEADERS+=/home/tjwilk/Physics/software/fjcontrib/Nsubjettiness/Nsubjettiness.hh /home/tjwilk/Physics/software/fjcontrib/Nsubjettiness/Njettiness.hh
+INSTALLED_HEADERS+=/home/tjwilk/Physics/software/fjcontrib/Nsubjettiness/Nsubjettiness.hh /home/tjwilk/Physics/software/fjcontrib/Nsubjettiness/Njettiness.hh
 
 # LHAPDF if you want to replace Pythia's dummy default
 #LHAPDFARGS =
@@ -86,8 +86,6 @@ OBJS = $(SRCS:.cc=.o)
 .PHONY: clean distclean examples check install
 
 all: lib$(NAME).a 
-	# g++ -o GlobalSoftDrop GlobalSoftDrop.cc -std=c++11 $(STATICLIB) $(PYTHIAFLAGS) $(PYTHIALIBS) $(FASTJETINC) $(FASTJETLIB) $(DICTCXXFLAGS) $(ROOTCXXFLAGS) $(LDFLAGS1) $(INSTALLED_HEADERS) -l$(NAME) -l$(NAME2)
-	# g++ -o axestest_njettiness axestest_njettiness.cc -std=c++11 $(STATICLIB) $(PYTHIAFLAGS) $(PYTHIALIBS) $(FASTJETINC) $(FASTJETLIB) $(DICTCXXFLAGS) $(ROOTCXXFLAGS) $(LDFLAGS1) $(INSTALLED_HEADERS) -l$(NAME) -l$(NAME2)
 
 lib$(NAME).a: $(OBJS) 
 	ar cru lib$(NAME).a $(OBJS) 
@@ -97,8 +95,8 @@ lib$(NAME).a: $(OBJS)
 
 # $(EXAMPLES): % : %.o all
 # 	$(CXX) -o $@ $< -L. -l$(NAME) $(LDFLAGS)
-# axestest:
-# 	g++ -o axestest_njettiness axestest_njettiness.cc -std=c++11 $(STATICLIB) $(PYTHIAFLAGS) $(PYTHIALIBS) $(FASTJETINC) $(FASTJETLIB) $(DICTCXXFLAGS) $(ROOTCXXFLAGS) $(LDFLAGS1) $(INSTALLED_HEADERS) -l$(NAME) -l$(NAME2)
+higgstest:
+	g++ -o GSD_higgs_test GSD_higgs_test.cc -std=c++11 $(STATICLIB) $(PYTHIAFLAGS) $(PYTHIALIBS) $(FASTJETINC) $(FASTJETLIB) $(DICTCXXFLAGS) $(ROOTCXXFLAGS) $(LDFLAGS1) $(INSTALLED_HEADERS) -L/home/tjwilk/Physics/thaler_urop/GlobalSoftDrop -l$(NAME) -L/home/tjwilk/software/fjcontrib/Nsubjettiness -l$(NAME2)
 
 # ttbarstudy: 
 # 	g++ -o ttbarstudy_njettiness ttbarstudy_njettiness.cc -std=c++11 $(STATICLIB) $(PYTHIAFLAGS) $(PYTHIALIBS) $(FASTJETINC) $(FASTJETLIB) $(DICTCXXFLAGS) $(ROOTCXXFLAGS) $(LDFLAGS1) $(INSTALLED_HEADERS) -l$(NAME) -l$(NAME2)

@@ -7,12 +7,13 @@ The algorithm then uses a priority queue to recursively unwind the clustering se
 
 */
 
+// COMMENT YOUR DAMN CODE BEFORE YOU FORGET
+
 #ifndef _GlobalSoftDrop_hh_
 #define _GlobalSoftDrop_hh_
 
 //FASTJET HEADERS
 // #include "FastJet3.h"
-#include "fastjet/Selector.hh"
 #include "fastjet/PseudoJet.hh"
 #include "fastjet/JetDefinition.hh"
 #include "fastjet/ClusterSequence.hh"
@@ -44,9 +45,17 @@ public:
 class BranchQueue {
 public:
 	BranchQueue() {}
-	vector<PseudoJet> runBranchQueue(PseudoJet leading_particle, int njets, double alpha, double zcut);
+	~BranchQueue() {delete seedJet_clustSeq;}
+	// vector<PseudoJet> runBranchQueue(PseudoJet leading_particle, int njets, double alpha, double zcut);
+	vector<PseudoJet> runBranchQueue(std::vector<fastjet::PseudoJet> input_particles, fastjet::JetAlgorithm jet_algorithm, int njets, double alpha, double zcut);
 
 private:
+	PseudoJet seedJet;
+	ClusterSequence* seedJet_clustSeq;
+
+	// step 1: cluster all particles in the event into a single "jet" through WTA recombination
+	void initialCluster(std::vector<fastjet::PseudoJet> input_particles, fastjet::JetAlgorithm jet_algorithm);
+
 	vector<BranchFitness> splitBranch(BranchFitness branch, double alpha);
 	vector<PseudoJet> queue2Vector(priority_queue<BranchFitness, vector<BranchFitness>, CompareJetBranch> myQueue);
 };
@@ -59,8 +68,15 @@ public:
 	: _input_particles(input_particles), _jet_algorithm(jet_algorithm),
 	_njets(njets), _alpha(alpha), _zcut(zcut) {}
 
+	void runAlgorithm() {
+		findAxes();
+		calculateRadii();
+		clusterJets();
+	}
+
 	vector<PseudoJet> getAxes() { return myAxes; }
 	vector<PseudoJet> getJets() { return myJets; }
+	double getRadius() { return jet_radius; }
 
 private:
 	vector<PseudoJet> _input_particles;
@@ -69,18 +85,17 @@ private:
 	double _alpha;
 	double _zcut;
 
-	PseudoJet seedJet;
+	// PseudoJet seedJet;
+	// ClusterSequence _seedJet_clustSeq;
 	vector<PseudoJet> myAxes;
 	vector<PseudoJet> myJets;
 	double jet_radius;
 
-	// step 1: cluster all particles in the event into a single "jet" through WTA recombination
-	void initialCluster();
-	// step 2: use the priority queue to find the desired number of axes in the event
+	// step 1: use the priority queue to find the desired number of axes in the event
 	void findAxes();
-	// step 3: use the distance between the axes to calculate the desired radius for each of the jets
+	// step 2: use the distance between the axes to calculate the desired radius for each of the jets
 	void calculateRadii();
-	// step 4: cluster particles into jets through nearest-neighbor clustering (auto-tessellation)
+	// step 3: cluster particles into jets through nearest-neighbor clustering (auto-tessellation)
 	void clusterJets();
 };
 
