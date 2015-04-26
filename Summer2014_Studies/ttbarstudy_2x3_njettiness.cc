@@ -41,11 +41,32 @@
 #include "TArc.h"
 #include "TVirtualFitter.h"
 #include "TLine.h"
+#include "TPaveText.h"
 
 using namespace std;
 using namespace Pythia8;
 using namespace fastjet;
 using namespace fastjet::contrib;
+
+class AxesStruct {
+     
+private:
+  // Shared Ptr so it handles memory management
+  SharedPtr<AxesDefinition> _axes_def;
+     
+public:
+  AxesStruct(const AxesDefinition & axes_def)
+  : _axes_def(axes_def.create()) {}
+  
+  // Need special copy constructor to make it possible to put in a std::vector
+  AxesStruct(const AxesStruct& myStruct)
+  : _axes_def(myStruct._axes_def->create()) {}
+     
+  const AxesDefinition & def() const {return *_axes_def;}
+  string description() const {return _axes_def->description();}
+  string short_description() const {return _axes_def->short_description();}
+  
+};
 
 int next_comb(int comb[], int k, int n) {
   int i = k - 1;
@@ -185,7 +206,6 @@ groupedJetsinfo groupJets(vector<PseudoJet> inputJets, double Rgroup, double Rmi
     }
   }
 
-  // cout << "hello first" << endl;
   // group the N subjets according to the index references from above
   vector<int> subjet_counter(inputJets.size());
   for (int i = 0; i < inputJets.size(); i++) {
@@ -200,7 +220,6 @@ groupedJetsinfo groupJets(vector<PseudoJet> inputJets, double Rgroup, double Rmi
       subjet_counter[index_references[i]]++;
     }
   }
-  // cout << "hello!";
 
   // pick out only the combined jets that have mass (i.e. remove empty jets from the vector)
   vector<PseudoJet> massive_jets;
@@ -228,6 +247,43 @@ groupedJetsinfo groupJets(vector<PseudoJet> inputJets, double Rgroup, double Rmi
 }
 
 
+vector<PseudoJet> findMinMass(vector<PseudoJet> initial_jets, int n_min, double zcut) {
+
+  PseudoJet minmass_jet;
+  vector<PseudoJet> minmass_jets_const;
+
+  std::string bitmask(n_min, 1); // K leading 1's
+  bitmask.resize(initial_jets.size(), 0); // N-K trailing 0's
+
+  double minmass = std::numeric_limits<int>::max();
+  do {
+    vector<int> axis_indices;
+    for (int i = 0; i < initial_jets.size(); ++i) {
+      if (bitmask[i]) axis_indices.push_back(i);
+    }
+    PseudoJet temp_jet;
+    vector<PseudoJet> temp_jets_const;
+    double min_perp = std::numeric_limits<int>::max();
+    double sum_perp = 0;
+    for (int j = 0; j < axis_indices.size(); j++) {
+      temp_jet = join(temp_jet,initial_jets[axis_indices[j]]);
+      temp_jets_const.push_back(initial_jets[axis_indices[j]]);
+      if (initial_jets[axis_indices[j]].perp() < min_perp) min_perp = initial_jets[axis_indices[j]].perp();
+      sum_perp += initial_jets[axis_indices[j]].perp();
+    }
+
+    double temp_zfrac = (double)min_perp/sum_perp;
+    if (temp_jet.m() < minmass && temp_zfrac > zcut) {
+      minmass = temp_jet.m();
+      minmass_jet = temp_jet;
+      minmass_jets_const = temp_jets_const;
+    }
+  } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+
+  return minmass_jets_const;
+}
+
+
 vector<PseudoJet> findMinMass(vector<PseudoJet> initial_jets, int n_min) {
 
   PseudoJet minmass_jet;
@@ -244,11 +300,17 @@ vector<PseudoJet> findMinMass(vector<PseudoJet> initial_jets, int n_min) {
     }
     PseudoJet temp_jet;
     vector<PseudoJet> temp_jets_const;
+    double min_perp = std::numeric_limits<int>::max();
+    double sum_perp = 0;
     for (int j = 0; j < axis_indices.size(); j++) {
       temp_jet = join(temp_jet,initial_jets[axis_indices[j]]);
       temp_jets_const.push_back(initial_jets[axis_indices[j]]);
+      // if (initial_jets[axis_indices[j]].perp() < min_perp) min_perp = initial_jets[axis_indices[j]].perp();
+      // sum_perp += initial_jets[axis_indices[j]].perp();
     }
 
+    // double temp_zfrac = (double)min_perp/sum_perp;
+    // if (temp_jet.m() < minmass && temp_zfrac > zcut) {
     if (temp_jet.m() < minmass) {
       minmass = temp_jet.m();
       minmass_jet = temp_jet;
@@ -291,6 +353,94 @@ vector<PseudoJet> findMaxPerp(vector<PseudoJet> initial_jets, int n_min) {
   return maxperp_jets_const;
 }
 
+
+double calcDphi(PseudoJet jet1, PseudoJet jet2) {
+  double dphi;
+  dphi = jet1.phi() - jet2.phi();
+  if (dphi >  TMath::Pi()) dphi -= 2*TMath::Pi();
+  if (dphi < -TMath::Pi()) dphi += 2*TMath::Pi();
+  return dphi; 
+}
+
+// vector<PseudoJet> findTotalMinMass(vector<PseudoJet> initial_jets) {
+
+//   vector<PseudoJet> minmass_jets;
+
+//   std::string bitmask(3, 1); // K leading 1's
+//   bitmask.resize(initial_jets.size(), 0); // N-K trailing 0's
+
+//   double minmass = std::numeric_limits<int>::max();
+//   do {
+//     vector<int> axis_indices;
+
+//     PseudoJet temp_jet(0,0,0,0);
+//     PseudoJet temp_jet_2(0,0,0,0);
+
+//     for (int i = 0; i < initial_jets.size(); ++i) {
+//       if (bitmask[i]) temp_jet = join(temp_jet, initial_jets[i]);
+//       else temp_jet_2 = join(temp_jet_2, initial_jets[i]);
+//     }
+
+//     vector<PseudoJet> temp_minmass_jets;
+//     temp_minmass_jets.push_back(temp_jet);
+//     temp_minmass_jets.push_back(temp_jet_2);
+
+//     if ((temp_jet.m() + temp_jet_2.m()) < minmass) {
+//       minmass = temp_jet.m() + temp_jet_2.m();
+//       minmass_jets = temp_minmass_jets;
+//     }
+//   } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+
+//   return minmass_jets;
+// }
+
+
+vector<vector<PseudoJet>> findTotalMinMass(vector<PseudoJet> initial_jets) {
+
+  vector<PseudoJet> minmass_jets;
+  vector<vector<PseudoJet>> minmass_jet_vectors;
+
+  std::string bitmask(3, 1); // K leading 1's
+  bitmask.resize(initial_jets.size(), 0); // N-K trailing 0's
+
+  double minmass = std::numeric_limits<int>::max();
+  do {
+    vector<int> axis_indices;
+
+    PseudoJet temp_jet(0,0,0,0);
+    PseudoJet temp_jet_2(0,0,0,0);
+    vector<PseudoJet> temp_jet_vector;
+    vector<PseudoJet> temp_jet_2_vector;
+
+    for (int i = 0; i < initial_jets.size(); ++i) {
+      if (bitmask[i]) {
+        temp_jet = join(temp_jet, initial_jets[i]);
+        temp_jet_vector.push_back(initial_jets[i]);
+      }
+      else {
+        temp_jet_2 = join(temp_jet_2, initial_jets[i]);
+        temp_jet_2_vector.push_back(initial_jets[i]);
+      }
+    }
+
+    vector<PseudoJet> temp_minmass_jets;
+    vector<vector<PseudoJet>> temp_minmass_jet_vectors;
+    temp_minmass_jets.push_back(temp_jet);
+    temp_minmass_jets.push_back(temp_jet_2);
+    temp_minmass_jet_vectors.push_back(temp_jet_vector);
+    temp_minmass_jet_vectors.push_back(temp_jet_2_vector);
+
+    if ((temp_jet.m() + temp_jet_2.m()) < minmass) {
+      minmass = temp_jet.m() + temp_jet_2.m();
+      minmass_jets = temp_minmass_jets;
+      minmass_jet_vectors = temp_minmass_jet_vectors;
+    }
+  } while (std::prev_permutation(bitmask.begin(), bitmask.end()));
+
+  return minmass_jet_vectors;
+}
+
+
 int main(int argc, char* argv[]){
 
   TFile out("ttbarstudy.root", "RECREATE");
@@ -303,15 +453,19 @@ int main(int argc, char* argv[]){
   plain->SetTitleFont(132, "xy");
   plain->SetLegendFont(132);
   // plain->SetTextSize(0.05);
-  plain->SetLabelSize(0.04, "x");
-  plain->SetLabelSize(0.03, "y");
-  plain->SetLabelOffset(0.003, "xy");
-  plain->SetTitleSize(0.06, "a");
-  plain->SetTitleSize(0.05, "xy");
-  plain->SetPadLeftMargin(0.12);
-  plain->SetPadBottomMargin(0.12);
-  plain->SetTitleOffset(1.25, "y");
-  plain->SetHistLineWidth(3);
+  plain->SetLabelSize(0.05, "xy");
+  // plain->SetLabelSize(0.03, "y");
+  // plain->SetLabelOffset(0.003, "xy");
+  plain->SetTitleSize(0.09, "a");
+  plain->SetTitleSize(0.07, "y");
+  plain->SetTitleSize(0.08, "x");
+  plain->SetPadTopMargin(0.12);
+  plain->SetPadLeftMargin(0.15);
+  plain->SetPadBottomMargin(0.15);
+  // plain->SetTitleOffset(1.25, "y");
+  plain->SetTitleOffset(0.8, "x");
+  plain->SetTitleOffset(1.1, "y");
+  plain->SetHistLineWidth(4);
 
   // plain->SetLegendSize(12);
   plain->SetTitleBorderSize(0);
@@ -326,6 +480,7 @@ int main(int argc, char* argv[]){
 
   double epsilon = 0.0001;
   double Rparam = 0.5;
+  double zfrac = 0.0;
 
   int initial_axes_num = 6;
   int antikt_initial_axes_num = 3;
@@ -339,19 +494,19 @@ int main(int argc, char* argv[]){
   vector<double> betalist;
   // betalist.push_back(0.25);
   // betalist.push_back(0.5);
-  betalist.push_back(1.0);
   betalist.push_back(2.0);
+  betalist.push_back(1.0);
   // betalist.push_back(3.0);
   int n_betas = betalist.size();
 
   vector<Color_t> colorlist;
-  colorlist.push_back(kRed);
   colorlist.push_back(kBlue);
+  colorlist.push_back(kRed);
   colorlist.push_back(kYellow);
   colorlist.push_back(8);
 
   // vector<int> ptlist;
-  // ptlist.push_back(240);
+  // ptlist.push_back(200);
   // ptlist.push_back(300);
   // ptlist.push_back(400);
   // ptlist.push_back(500);
@@ -363,6 +518,7 @@ int main(int argc, char* argv[]){
   double ptlist[n_perps];
 
   double top_efficiency_rawmass[n_betas + 2][n_perps];
+  double top_efficiency_rawmass_Wmasscut[n_betas + 2][n_perps];
   double top_efficiency_mass[n_betas + 2][n_perps];
   double top_efficiency_mass_2groups[n_betas + 2][n_perps];
   double top_efficiency_mass_2groups_improved[n_betas + 2][n_perps];
@@ -371,10 +527,13 @@ int main(int argc, char* argv[]){
   double top_efficiency_mass_3jet4jet_2groups[n_betas + 2][n_perps];
   double top_efficiency_mass_3jet4jet_2groups_Wmasscut[n_betas + 2][n_perps];
 
-  double top_efficiency_ratio[n_betas][n_perps];
-  double top_efficiency_ratio_2groups[n_betas][n_perps];
+  double top_efficiency_ratio[n_betas + 2][n_perps];
+  double top_efficiency_ratio_Wmasscut[n_betas + 2][n_perps];
+  double top_efficiency_ratio_2groups[n_betas + 2][n_perps];
+  double top_efficiency_ratio_2groups_Wmasscut[n_betas + 2][n_perps];
 
   double qcd_efficiency_rawmass[n_betas + 2][n_perps];
+  double qcd_efficiency_rawmass_Wmasscut[n_betas + 2][n_perps];
   double qcd_efficiency_mass[n_betas + 2][n_perps];
   double qcd_efficiency_mass_2groups[n_betas + 2][n_perps];
   double qcd_efficiency_mass_2groups_improved[n_betas + 2][n_perps];
@@ -382,9 +541,6 @@ int main(int argc, char* argv[]){
   double qcd_efficiency_mass_2groups_improved_Wmasscut[n_betas + 2][n_perps];
   double qcd_efficiency_mass_3jet4jet_2groups[n_betas + 2][n_perps];
   double qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[n_betas + 2][n_perps];
-
-  double qcd_efficiency_ratio[n_betas][n_perps];
-  double qcd_efficiency_ratio_2groups[n_betas][n_perps];
 
   // double ROC_mass_compare[2][n_betas + 1][n_perps];
   TObjArray tau32_ttbar_manual_6jet_total_hists;
@@ -462,6 +618,8 @@ int main(int argc, char* argv[]){
     vector<int> total_ttbar_Wmasscut_events;
     vector<int> total_dijets_events;
     vector<int> total_dijets_Wmasscut_events;
+    // vector<int> total_ttbar_avgdistance_events;
+    // vector<int> total_dijets_avgdistance_events;
     // int total_ttbar_events = 0;
     // int total_ttbar_Wmasscut_events = 0;
     // int total_dijets_events = 0;
@@ -475,6 +633,9 @@ int main(int argc, char* argv[]){
 
     TObjArray rawmass_ttbar_manual_hists;
     TObjArray rawmass_dijets_manual_hists;
+
+    TObjArray rawmass_ttbar_manual_Wmasscut_hists;
+    TObjArray rawmass_dijets_manual_Wmasscut_hists;
 
     TObjArray mass_ttbar_manual_hists;
     TObjArray mass_dijets_manual_hists;
@@ -506,6 +667,18 @@ int main(int argc, char* argv[]){
     TObjArray mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare_hists;
     TObjArray mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare_hists;
 
+    TObjArray massdiff_ttbar_manual_3jet4jet_2groups_hists;
+    TObjArray massdiff_dijets_manual_3jet4jet_2groups_hists;
+
+    TObjArray massratio_ttbar_manual_3jet4jet_2groups_hists;
+    TObjArray massratio_dijets_manual_3jet4jet_2groups_hists;
+
+    TObjArray massratio_ttbar_manual_3jet4jet_2groups_improved_hists;
+    TObjArray massratio_dijets_manual_3jet4jet_2groups_improved_hists;
+
+    TObjArray massratio_ttbar_manual_3jet4jet_2groups_compare_hists;
+    TObjArray massratio_dijets_manual_3jet4jet_2groups_compare_hists;
+
     TObjArray tau32_ttbar_manual_6jet_hists;
     TObjArray tau32_dijets_manual_6jet_hists;
 
@@ -521,6 +694,9 @@ int main(int argc, char* argv[]){
     TObjArray tau32_ttbar_manual_2groups_bigcone_hists;
     TObjArray tau32_dijets_manual_2groups_bigcone_hists;
 
+    TObjArray tau32_ttbar_manual_3jet4jet_2groups_compare_hists;
+    TObjArray tau32_dijets_manual_3jet4jet_2groups_compare_hists;
+
     TObjArray max_njet_ttbar_manual_2groups_improved_hists;
     TObjArray max_njet_dijets_manual_2groups_improved_hists;
 
@@ -529,6 +705,15 @@ int main(int argc, char* argv[]){
 
     TObjArray tau32_ttbar_antikt_hists;
     TObjArray tau32_dijets_antikt_hists;
+
+    TObjArray avgdistance_ttbar_manual_hists;
+    TObjArray avgdistance_dijets_manual_hists;
+
+    TObjArray avgdistance_improved_ttbar_manual_hists;
+    TObjArray avgdistance_improved_dijets_manual_hists;
+
+    TObjArray helicityangle_ttbar_manual_hists;
+    TObjArray helicityangle_dijets_manual_hists;
 
     TObjArray volatility_ttbar_manual_hists;
     TObjArray volatility_dijets_manual_hists;
@@ -545,14 +730,16 @@ int main(int argc, char* argv[]){
       total_dijets_events.push_back(0);
       total_dijets_Wmasscut_events.push_back(0);
 
-      TH1* area_ttbar_manual = new TH1F("area_ttbar_manual", "Area of top jets", 50, 0, 1.5);
-      TH1* area_dijets_manual = new TH1F("area_dijets_manual", "Area of QCD jet", 50, 0, 1.5);
+      TH1* area_ttbar_manual = new TH1F("area_ttbar_manual", "Area of top jets", 40, 0.4, 1.2);
+      TH1* area_dijets_manual = new TH1F("area_dijets_manual", "Area of QCD jet", 40, 0.4, 1.2);
       
       TH1* rawmass_ttbar_manual_2jets = new TH1F("rawmass_ttbar_manual_2jets", "Raw Mass of reconstructed tops", 50, 0, 500);
       TH1* rawmass_dijets_manual_2jets = new TH1F("rawmass_dijets_manual_2jets", "Mass of QCD jet", 50, 0, 500);
 
       TH1* rawmass_ttbar_manual = new TH1F("rawmass_ttbar_manual", "Raw Mass of reconstructed tops", 50, 0, 500);
       TH1* rawmass_dijets_manual = new TH1F("rawmass_dijets_manual", "Mass of QCD jet", 50, 0, 500);
+      TH1* rawmass_ttbar_manual_Wmasscut = new TH1F("rawmass_ttbar_manual_Wmasscut", "Raw Mass of reconstructed tops", 50, 0, 500);
+      TH1* rawmass_dijets_manual_Wmasscut = new TH1F("rawmass_dijets_manual_Wmasscut", "Mass of QCD jet", 50, 0, 500);
       TH1* mass_ttbar_manual_2groups = new TH1F("mass_ttbar_manual_2groups", "Mass of reconstructed tops from 2 groups", 50, 0, 500);
       TH1* mass_dijets_manual_2groups = new TH1F("mass_dijets_manual_2groups", "Mass of QCD jet from 2 groups", 50, 0, 500);
       TH1* mass_ttbar_manual_2groups_improved = new TH1F("mass_ttbar_manual_2groups_improved", "Mass of reconstructed tops from 2 groups", 50, 0, 500);
@@ -574,6 +761,16 @@ int main(int argc, char* argv[]){
       TH2* minmass_dijets_manual_2jet3jet_2groups_compare = new TH2F("minmass_dijets_manual_2jet3jet_2groups_compare", "", 50, 0, 200, 50, 0, 200);
       TH2* mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare = new TH2F("mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare", "", 50, 0, 500, 50, 0, 500);
       TH2* mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare = new TH2F("mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare", "", 50, 0, 500, 50, 0, 500);
+      // TH1* massdiff_ttbar_manual_3jet4jet_2groups = new TH1F("massdiff_ttbar_manual_3jet4jet_2groups", "", 50, -200, 200);
+      // TH1* massdiff_dijets_manual_3jet4jet_2groups = new TH1F("massdiff_dijets_manual_3jet4jet_2groups", "", 50, -200, 200);
+      TH1* massdiff_ttbar_manual_3jet4jet_2groups = new TH1F("massdiff_ttbar_manual_3jet4jet_2groups", "", 50, 0, 2);
+      TH1* massdiff_dijets_manual_3jet4jet_2groups = new TH1F("massdiff_dijets_manual_3jet4jet_2groups", "", 50, 0, 2);
+      TH1* massratio_ttbar_manual_3jet4jet_2groups = new TH1F("massratio_ttbar_manual_3jet4jet_2groups", "", 50, 0, 2);
+      TH1* massratio_dijets_manual_3jet4jet_2groups = new TH1F("massratio_dijets_manual_3jet4jet_2groups", "", 50, 0, 2);
+      TH1* massratio_ttbar_manual_3jet4jet_2groups_improved = new TH1F("massratio_ttbar_manual_3jet4jet_2groups_improved", "", 50, 0, 2);
+      TH1* massratio_dijets_manual_3jet4jet_2groups_improved = new TH1F("massratio_dijets_manual_3jet4jet_2groups_improved", "", 50, 0, 2);
+      TH2* massratio_ttbar_manual_3jet4jet_2groups_compare = new TH2F("massratio_ttbar_manual_3jet4jet_2groups_compare", "", 50, 0, 1, 50, 0, 1);
+      TH2* massratio_dijets_manual_3jet4jet_2groups_compare = new TH2F("massratio_dijets_manual_3jet4jet_2groups_compare", "", 50, 0, 1, 50, 0, 1);
 
       TH1* tau32_ttbar_manual_6jet = new TH1F("tau32_ttbar_manual_6jet", "#tau_{32} of Tops", 25, 0, 1);
       TH1* tau32_dijets_manual_6jet = new TH1F("tau32_dijets_manual_6jet", "#tau_{32} of QCD", 25, 0, 1);      
@@ -585,6 +782,8 @@ int main(int argc, char* argv[]){
       TH1* tau32_dijets_manual_2groups_improved = new TH1F("tau32_dijets_manual_2groups_improved", "#tau_{32} of QCD", 25, 0, 1);
       TH1* tau32_ttbar_manual_2groups_bigcone = new TH1F("tau32_ttbar_manual_2groups_bigcone", "", 25, 0, 1);
       TH1* tau32_dijets_manual_2groups_bigcone = new TH1F("tau32_dijets_manual_2groups_bigcone", "", 25, 0, 1);
+      TH2* tau32_ttbar_manual_3jet4jet_2groups_compare = new TH2F("tau32_ttbar_manual_3jet4jet_2groups_compare", "#tau_{32} of Tops", 25, 0, 2, 25, 0, 2);
+      TH2* tau32_dijets_manual_3jet4jet_2groups_compare = new TH2F("tau32_dijets_manual_3jet4jet_2groups_compare", "#tau_{32} of QCD", 25, 0, 2, 25, 0, 2);
 
       TH1* max_njet_ttbar_manual_2groups_improved = new TH1F("max_njet_ttbar_manual_2groups_improved", "Maximum N-jettiness of Tops from 2 groups", 10, 0, 10);
       TH1* max_njet_dijets_manual_2groups_improved = new TH1F("max_njet_dijets_manual_2groups_improved", "Maximum N-jettiness of QCD from 2 groups", 10, 0, 10);
@@ -596,6 +795,12 @@ int main(int argc, char* argv[]){
 
       TH1F* volatility_ttbar_manual = new TH1F("volatility_ttbar_manual", "", 25, 0, 1);
       TH1F* volatility_dijets_manual = new TH1F("volatility_dijets_manual", "", 25, 0, 1);
+      TH1F* avgdistance_ttbar_manual = new TH1F("avgdistance_ttbar_manual", "", 50, 0, 500);
+      TH1F* avgdistance_dijets_manual = new TH1F("avgdistance_dijets_manual", "", 50, 0, 500);
+      TH1F* avgdistance_improved_ttbar_manual = new TH1F("avgdistance_improved_ttbar_manual", "", 50, 0, 500);
+      TH1F* avgdistance_improved_dijets_manual = new TH1F("avgdistance_improved_dijets_manual", "", 50, 0, 500);
+      TH1F* helicityangle_ttbar_manual = new TH1F("helicityangle_ttbar_manual", "", 20, 0, 2.0);
+      TH1F* helicityangle_dijets_manual = new TH1F("helicityangle_dijets_manual", "", 20, 0, 2.0);
 
       area_ttbar_manual_hists.Add(area_ttbar_manual);
       area_dijets_manual_hists.Add(area_dijets_manual);
@@ -604,6 +809,8 @@ int main(int argc, char* argv[]){
       rawmass_dijets_manual_2jets_hists.Add(rawmass_dijets_manual_2jets);
       rawmass_ttbar_manual_hists.Add(rawmass_ttbar_manual);
       rawmass_dijets_manual_hists.Add(rawmass_dijets_manual);
+      rawmass_ttbar_manual_Wmasscut_hists.Add(rawmass_ttbar_manual_Wmasscut);
+      rawmass_dijets_manual_Wmasscut_hists.Add(rawmass_dijets_manual_Wmasscut);
       
       mass_ttbar_manual_2groups_hists.Add(mass_ttbar_manual_2groups);
       mass_dijets_manual_2groups_hists.Add(mass_dijets_manual_2groups);
@@ -622,11 +829,18 @@ int main(int argc, char* argv[]){
 
       mass_ttbar_manual_3jet4jet_2groups_compare_hists.Add(mass_ttbar_manual_3jet4jet_2groups_compare);
       mass_dijets_manual_3jet4jet_2groups_compare_hists.Add(mass_dijets_manual_3jet4jet_2groups_compare);
-
       minmass_ttbar_manual_2jet3jet_2groups_compare_hists.Add(minmass_ttbar_manual_2jet3jet_2groups_compare);
       minmass_dijets_manual_2jet3jet_2groups_compare_hists.Add(minmass_dijets_manual_2jet3jet_2groups_compare);
       mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare_hists.Add(mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare);
       mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare_hists.Add(mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare);
+      massdiff_ttbar_manual_3jet4jet_2groups_hists.Add(massdiff_ttbar_manual_3jet4jet_2groups);
+      massdiff_dijets_manual_3jet4jet_2groups_hists.Add(massdiff_dijets_manual_3jet4jet_2groups);
+      massratio_ttbar_manual_3jet4jet_2groups_hists.Add(massratio_ttbar_manual_3jet4jet_2groups);
+      massratio_dijets_manual_3jet4jet_2groups_hists.Add(massratio_dijets_manual_3jet4jet_2groups);
+      massratio_ttbar_manual_3jet4jet_2groups_improved_hists.Add(massratio_ttbar_manual_3jet4jet_2groups_improved);
+      massratio_dijets_manual_3jet4jet_2groups_improved_hists.Add(massratio_dijets_manual_3jet4jet_2groups_improved);
+      massratio_ttbar_manual_3jet4jet_2groups_compare_hists.Add(massratio_ttbar_manual_3jet4jet_2groups_compare);
+      massratio_dijets_manual_3jet4jet_2groups_compare_hists.Add(massratio_dijets_manual_3jet4jet_2groups_compare);
 
       tau32_ttbar_manual_6jet_hists.Add(tau32_ttbar_manual_6jet);
       tau32_dijets_manual_6jet_hists.Add(tau32_dijets_manual_6jet);
@@ -638,7 +852,9 @@ int main(int argc, char* argv[]){
       tau32_dijets_manual_2groups_improved_hists.Add(tau32_dijets_manual_2groups_improved);
       tau32_ttbar_manual_2groups_bigcone_hists.Add(tau32_ttbar_manual_2groups_bigcone);
       tau32_dijets_manual_2groups_bigcone_hists.Add(tau32_dijets_manual_2groups_bigcone);
-      
+      tau32_ttbar_manual_3jet4jet_2groups_compare_hists.Add(tau32_ttbar_manual_3jet4jet_2groups_compare);
+      tau32_dijets_manual_3jet4jet_2groups_compare_hists.Add(tau32_dijets_manual_3jet4jet_2groups_compare);
+
       max_njet_ttbar_manual_2groups_improved_hists.Add(max_njet_ttbar_manual_2groups_improved);
       max_njet_dijets_manual_2groups_improved_hists.Add(max_njet_dijets_manual_2groups_improved);
       max_njet_ttbar_manual_hists.Add(max_njet_ttbar_manual);
@@ -649,6 +865,13 @@ int main(int argc, char* argv[]){
 
       volatility_ttbar_manual_hists.Add(volatility_ttbar_manual);
       volatility_dijets_manual_hists.Add(volatility_dijets_manual);
+      avgdistance_ttbar_manual_hists.Add(avgdistance_ttbar_manual);
+      avgdistance_dijets_manual_hists.Add(avgdistance_dijets_manual);
+      avgdistance_improved_ttbar_manual_hists.Add(avgdistance_improved_ttbar_manual);
+      avgdistance_improved_dijets_manual_hists.Add(avgdistance_improved_dijets_manual);
+      helicityangle_ttbar_manual_hists.Add(helicityangle_ttbar_manual);
+      helicityangle_dijets_manual_hists.Add(helicityangle_dijets_manual);
+
     } 
 
 
@@ -662,23 +885,32 @@ int main(int argc, char* argv[]){
     total_dijets_events.push_back(0);
     total_dijets_Wmasscut_events.push_back(0);
 
-    // TH1F *tau6_ttbar_manual = new TH1F("tau6_ttbar_manual", "#tau_{6} for ttbar (Manual)", 240, 0, 1000);
-    // TH1F *tau6_dijets_manual = new TH1F("tau6_dijets_manual", "#tau_{6} for dijets (Manual)", 240, 0, 1000);
+    // TH1F *tau6_ttbar_manual = new TH1F("tau6_ttbar_manual", "#tau_{6} for ttbar (Manual)", 200, 0, 1000);
+    // TH1F *tau6_dijets_manual = new TH1F("tau6_dijets_manual", "#tau_{6} for dijets (Manual)", 200, 0, 1000);
 
-    // TH1F *tau3_ttbar_manual_antikt = new TH1F("tau3_ttbar_manual_antikt", "#tau_{3} for ttbar (Manual)", 240, 0, 1000);
-    // TH1F *tau3_dijets_manual_antikt = new TH1F("tau3_dijets_manual_antikt", "#tau_{3} for dijets (Manual)", 240, 0, 1000);
+    // TH1F *tau3_ttbar_manual_antikt = new TH1F("tau3_ttbar_manual_antikt", "#tau_{3} for ttbar (Manual)", 200, 0, 1000);
+    // TH1F *tau3_dijets_manual_antikt = new TH1F("tau3_dijets_manual_antikt", "#tau_{3} for dijets (Manual)", 200, 0, 1000);
 
-    TH1F* area_ttbar_antikt = new TH1F("area_ttbar_antikt", "area ttbar", 50, 0, 1.5);
-    TH1F* area_dijets_antikt = new TH1F("area_dijets_antikt", "area dijets", 50, 0, 1.5);
+    TH1F* area_ttbar_antikt = new TH1F("area_ttbar_antikt", "area ttbar", 40, 0.4, 1.2);
+    TH1F* area_dijets_antikt = new TH1F("area_dijets_antikt", "area dijets", 40, 0.4, 1.2);
 
     TH1F *mass_ttbar_antikt_6jets = new TH1F("mass_ttbar_antikt_6jets", "mass ttbar", 50, 0, 500);
     TH1F *mass_dijets_antikt_6jets = new TH1F("mass_dijets_antikt_6jets", "mass dijets", 50, 0, 500);
+
+    TH1F *mass_ttbar_antikt_6jets_Wmasscut = new TH1F("mass_ttbar_antikt_6jets_Wmasscut", "mass ttbar", 50, 0, 500);
+    TH1F *mass_dijets_antikt_6jets_Wmasscut = new TH1F("mass_dijets_antikt_6jets_Wmasscut", "mass dijets", 50, 0, 500);
 
     TH1F *mass_ttbar_antikt_6jets_improved = new TH1F("mass_ttbar_antikt_6jets", "mass ttbar", 50, 0, 500);
     TH1F *mass_dijets_antikt_6jets_improved = new TH1F("mass_dijets_antikt_6jets", "mass dijets", 50, 0, 500);
 
     TH1F *mass_ttbar_antikt = new TH1F("mass_ttbar_antikt", "mass ttbar", 50, 0, 500);
     TH1F *mass_dijets_antikt = new TH1F("mass_dijets_antikt", "mass dijets", 50, 0, 500);
+
+    TH1F *minmass_ttbar_antikt = new TH1F("minmass_ttbar_antikt", "mass ttbar", 50, 0, 200);
+    TH1F *minmass_dijets_antikt = new TH1F("minmass_dijets_antikt", "mass dijets", 50, 0, 200);
+
+    TH1F *mass_ttbar_antikt_Wmasscut = new TH1F("mass_ttbar_antikt_Wmasscut", "mass ttbar", 50, 0, 500);
+    TH1F *mass_dijets_antikt_Wmasscut = new TH1F("mass_dijets_antikt_Wmasscut", "mass dijets", 50, 0, 500);
 
     TH1F *mass_ttbar_antikt_2groups = new TH1F("mass_ttbar_antikt_2groups", "mass ttbar", 50, 0, 500);
     TH1F *mass_dijets_antikt_2groups = new TH1F("mass_dijets_antikt_2groups", "mass dijets", 50, 0, 500);
@@ -707,13 +939,34 @@ int main(int argc, char* argv[]){
     TH2* mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare = new TH2F("mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare", "", 50, 0, 500, 50, 0, 500);
     TH2* mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare = new TH2F("mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare", "", 50, 0, 500, 50, 0, 500);
 
+    // TH1* massdiff_ttbar_antikt_3jet4jet_2groups = new TH1F("massdiff_ttbar_antikt_3jet4jet_2groups", "", 50, -200, 200);
+    // TH1* massdiff_dijets_antikt_3jet4jet_2groups = new TH1F("massdiff_dijets_antikt_3jet4jet_2groups", "", 50, -200, 200);
+    TH1* massdiff_ttbar_antikt_3jet4jet_2groups = new TH1F("massdiff_ttbar_antikt_3jet4jet_2groups", "", 50, 0, 2);
+    TH1* massdiff_dijets_antikt_3jet4jet_2groups = new TH1F("massdiff_dijets_antikt_3jet4jet_2groups", "", 50, 0, 2);
+
+    TH1* massratio_ttbar_antikt_3jet4jet_2groups = new TH1F("massratio_ttbar_antikt_3jet4jet_2groups", "", 50, 0, 2);
+    TH1* massratio_dijets_antikt_3jet4jet_2groups = new TH1F("massratio_dijets_antikt_3jet4jet_2groups", "", 50, 0, 2);
+
+    TH1* massratio_ttbar_antikt_3jet4jet_2groups_improved = new TH1F("massratio_ttbar_antikt_3jet4jet_2groups_improved", "", 50, 0, 2);
+    TH1* massratio_dijets_antikt_3jet4jet_2groups_improved = new TH1F("massratio_dijets_antikt_3jet4jet_2groups_improved", "", 50, 0, 2);
+
     TH1F* tau32_ttbar_antikt_wta = new TH1F("tau32_ttbar_antikt_wta", "tau32 for tops", 25, 0, 1);
     TH1F* tau32_dijets_antikt_wta = new TH1F("tau32_dijets_antikt_wta", "tau32 for QCD", 25, 0, 1);
+
+    TH2* tau32_ttbar_antikt_3jet4jet_2groups_compare = new TH2F("tau32_ttbar_antikt_3jet4jet_2groups_compare", "#tau_{32} of Tops", 25, 0, 2, 25, 0, 2);
+    TH2* tau32_dijets_antikt_3jet4jet_2groups_compare = new TH2F("tau32_dijets_antikt_3jet4jet_2groups_compare", "#tau_{32} of QCD", 25, 0, 2, 25, 0, 2);
+
+    TH1* avgdistance_ttbar_antikt = new TH1F("avgdistance_ttbar_antikt", "", 50, 0, 500);
+    TH1* avgdistance_dijets_antikt = new TH1F("avgdistance_dijets_antikt", "", 50, 0, 500);
+    TH1* avgdistance_improved_ttbar_antikt = new TH1F("avgdistance_improved_ttbar_antikt", "", 50, 0, 500);
+    TH1* avgdistance_improved_dijets_antikt = new TH1F("avgdistance_improved_dijets_antikt", "", 50, 0, 500);
+    TH1* helicityangle_ttbar_antikt = new TH1F("helicityangle_ttbar_antikt", "", 20, 0, 2.0);
+    TH1* helicityangle_dijets_antikt = new TH1F("helicityangle_dijets_antikt", "", 20, 0, 2.0);
 
     string samples[2] = {filetitle_ttbar, filetitle_dijets};
     // std::string samples[2] = {"/home/tjwilk/Physics/thaler_urop/BOOST_samples/herwig65-lhc7-ttbar2hadrons-pt0500-0600.UW", "/home/tjwilk/Physics/thaler_urop/BOOST_samples/herwig65-lhc7-dijets-pt0500-0600.UW"};
     // std::string samples[2] = {"/home/tjwilk/Physics/thaler_urop/BOOST_samples/pythia64-tuneDW-lhc7-ttbar2hadrons-pt0500-0600.UW", "/home/tjwilk/Physics/thaler_urop/BOOST_samples/pythia64-tuneDW-lhc7-dijets-pt0500-0600.UW"};
-    const int nEvent = 100; // # of events to be analyzed   
+    const int nEvent = 1000; // # of events to be analyzed   
 
     for (int i_sample = 0; i_sample < 2; i_sample++) {
 
@@ -733,8 +986,6 @@ int main(int argc, char* argv[]){
         if (is_first_event) {is_first_event = false; continue;}
         if (particle_number == 0) {
 
-        // cout << i_event << endl;
-
           int max_njettiness;
 
           TH2F *event_display;
@@ -749,10 +1000,17 @@ int main(int argc, char* argv[]){
           TH2F *subjet_display_3 = new TH2F("subjet_display_3", "Subjet display", 1000, -5, 5, 1000, 0, 6.4);
           TH2F *subjet_display_4 = new TH2F("subjet_display_4", "Subjet display", 1000, -5, 5, 1000, 0, 6.4);
 
-          vector<PseudoJet> jet_constituents = input_particles;
+          // vector<PseudoJet> jet_constituents = input_particles;
+          vector<PseudoJet> jet_constituents;
 
-          for (int j = 0; j < jet_constituents.size(); j++) {
-            event_display->Fill(jet_constituents[j].eta(), jet_constituents[j].phi(), jet_constituents[j].perp()*100);
+          if (i_event % 10 == 0) cout << i_event << endl;
+          // cout << i_event << endl << endl;
+
+          for (int j = 0; j < input_particles.size(); j++) {
+            if (abs(input_particles[j].eta()) < 3.0) {
+              jet_constituents.push_back(input_particles[j]);
+              event_display->Fill(input_particles[j].eta(), input_particles[j].phi(), input_particles[j].perp()*100);
+            }
           }
 
           vector <PseudoJet> inclusiveJets_akt_big, sortedJets_akt_big, hardestJets_akt_big;
@@ -772,6 +1030,7 @@ int main(int argc, char* argv[]){
           JetDefinition *jetDef_akt = new JetDefinition(antikt_algorithm, Rparam, recombScheme_akt, strategy_akt);
           ClusterSequenceArea clustSeq_akt(input_particles, *jetDef_akt, area_def);
           inclusiveJets_akt = clustSeq_akt.inclusive_jets(0.0);
+          // inclusiveJets_akt = clustSeq_akt.exclusive_jets(6);
           sortedJets_akt = sorted_by_pt(inclusiveJets_akt);
           Selector jet_selector = SelectorNHardest(6);
           hardestJets_akt = jet_selector(sortedJets_akt);
@@ -781,15 +1040,106 @@ int main(int argc, char* argv[]){
             if (i_sample == 1) area_dijets_antikt->Fill(hardestJets_akt[i_jet].area());
           }
 
-          groupedJetsinfo bigjets_akt_info = groupJets(hardestJets_akt, grouping_radius, min_group_radius);
-          vector<PseudoJet> bigjets_akt = bigjets_akt_info.groupedJets;
-          Selector bigjet_selector = SelectorNHardest(2);
-          vector<PseudoJet> hardest_bigjets_akt = bigjet_selector(bigjets_akt);
+          // groupedJetsinfo bigjets_akt_info = groupJets(hardestJets_akt, grouping_radius, min_group_radius);
+          // vector<PseudoJet> bigjets_akt = bigjets_akt_info.groupedJets;
+
+          vector<vector<PseudoJet>> bigjets_akt = findTotalMinMass(hardestJets_akt);
+          vector<PseudoJet> hardest_bigjets_akt;
+          vector<PseudoJet> hardest_minmass_bigjets_akt;
+
+          for (int i = 0; i < bigjets_akt.size(); i++) {
+            PseudoJet temp_bigjet(0,0,0,0);
+            for (int j = 0; j < bigjets_akt[i].size(); j++) {
+              temp_bigjet = join(temp_bigjet, bigjets_akt[i][j]);
+            }
+
+            vector<PseudoJet> temp_minmass_jets = findMinMass(bigjets_akt[i], 2);
+            PseudoJet temp_minmass_jet(0,0,0,0);
+            for (int k = 0; k < temp_minmass_jets.size(); k++) {
+              temp_minmass_jet = join(temp_minmass_jet, temp_minmass_jets[k]);
+            }
+
+            hardest_bigjets_akt.push_back(temp_bigjet);
+            hardest_minmass_bigjets_akt.push_back(temp_minmass_jet);
+          }
+
+          // vector<PseudoJet> hardest_bigjets_akt = bigjet_selector(bigjets_akt);
 
           for (int i_bigjet = 0; i_bigjet < hardest_bigjets_akt.size(); i_bigjet++) {
-            if (i_sample == 0) mass_ttbar_antikt_6jets->Fill(hardest_bigjets_akt[i_bigjet].m());
-            if (i_sample == 1) mass_dijets_antikt_6jets->Fill(hardest_bigjets_akt[i_bigjet].m());
+            if (i_sample == 0) {
+              mass_ttbar_antikt_6jets->Fill(hardest_bigjets_akt[i_bigjet].m());
+              if (hardest_minmass_bigjets_akt[i_bigjet].m() > 50) {
+                mass_ttbar_antikt_6jets_Wmasscut->Fill(hardest_bigjets_akt[i_bigjet].m());
+              }
+            }
+            if (i_sample == 1) {
+              mass_dijets_antikt_6jets->Fill(hardest_bigjets_akt[i_bigjet].m());
+              if (hardest_minmass_bigjets_akt[i_bigjet].m() > 50) {
+                mass_dijets_antikt_6jets_Wmasscut->Fill(hardest_bigjets_akt[i_bigjet].m());
+              }
+            }
           }
+
+
+            vector <PseudoJet> inclusiveJets_std, sortedJets_std, hardestJets_std;
+
+            double Rparam_std = 1.0;
+            Strategy strategy_std = Best;
+            RecombinationScheme recombScheme_std = E_scheme;
+          // JetDefinition::Recombiner *recombScheme_std = new WinnerTakeAllRecombiner();
+            JetDefinition *jetDef_std = new JetDefinition(antikt_algorithm, Rparam_std, recombScheme_std, strategy_std);
+            ClusterSequence clustSeq_std(input_particles, *jetDef_std);
+            inclusiveJets_std = clustSeq_std.inclusive_jets(0.0);
+            sortedJets_std = sorted_by_pt(inclusiveJets_std);
+            Selector bigjet_selector = SelectorNHardest(2);
+            hardestJets_std = bigjet_selector(sortedJets_std);
+
+            NsubjettinessRatio nsub_32_wta(3, 2, OnePass_WTA_KT_Axes(), UnnormalizedMeasure(1.0));
+            
+            for (int i = 0; i < hardestJets_std.size(); i++) {
+              if (hardestJets_std[i].constituents().size() > 3) {
+                JetDefinition *jetDef_subakt = new JetDefinition(kt_algorithm, Rparam, recombScheme_std, strategy_std);
+                ClusterSequence clustSeq_subakt(hardestJets_std[i].constituents(), *jetDef_subakt);
+                vector<PseudoJet> inclusiveJets_subakt = clustSeq_subakt.exclusive_jets(3);
+                vector<PseudoJet> jets_3jets_akt = inclusiveJets_subakt;
+
+                vector<PseudoJet> jets_3jets_akt_minmass = findMinMass(jets_3jets_akt, 2);
+                PseudoJet smalljet_3jets_akt(0,0,0,0);
+                for (int i = 0; i < jets_3jets_akt_minmass.size(); i++) {
+                  smalljet_3jets_akt = join(smalljet_3jets_akt, jets_3jets_akt_minmass[i]);
+                }
+
+                if (i_sample == 0) {
+                  total_ttbar_jets++;
+                  mass_ttbar_antikt->Fill(hardestJets_std[i].m());
+                  minmass_ttbar_antikt->Fill(smalljet_3jets_akt.m());
+                  if (smalljet_3jets_akt.m() > 50) {
+                    mass_ttbar_antikt_Wmasscut->Fill(hardestJets_std[i].m());
+                  }
+                }
+                if (i_sample == 1) {
+                  total_dijets_jets++;
+                  mass_dijets_antikt->Fill(hardestJets_std[i].m());
+                  minmass_dijets_antikt->Fill(smalljet_3jets_akt.m());
+                  if (smalljet_3jets_akt.m() > 50) {
+                    mass_dijets_antikt_Wmasscut->Fill(hardestJets_std[i].m());
+                  }
+                }
+
+                if (hardestJets_std[i].m() > 150 && hardestJets_std[i].m() < 200) {
+                  if (i_sample == 0) {
+                    // TH1* tau32_ttbar_antikt = (TH1*)tau32_ttbar_antikt_hists.At(B);
+                    // tau32_ttbar_antikt->Fill(nsub3_manual.result(hardestJets_std[i])/nsub2_manual.result(hardestJets_std[i]));
+                    tau32_ttbar_antikt_wta->Fill(nsub_32_wta.result(hardestJets_std[i]));
+                  }
+                  if (i_sample == 1) {
+                    // TH1* tau32_dijets_antikt = (TH1*)tau32_dijets_antikt_hists.At(B);
+                    // tau32_dijets_antikt->Fill(nsub3_manual.result(hardestJets_std[i])/nsub2_manual.result(hardestJets_std[i]));
+                    tau32_dijets_antikt_wta->Fill(nsub_32_wta.result(hardestJets_std[i]));
+                  }
+                }
+              }
+            }
 
           for (unsigned int B = 0; B < betalist.size(); B++) {
 
@@ -799,97 +1149,115 @@ int main(int argc, char* argv[]){
 
             double beta = betalist[B];
             double power = (double)1/beta;
-          // double delta;
+            double delta;
 
-            const JetDefinition::Recombiner *recombScheme;
-            if (beta > 1) recombScheme = new GeneralERecombiner((double)1/(beta - 1));
-            else recombScheme = new WinnerTakeAllRecombiner();
+            if (beta > 1) delta = (double)1/(beta - 1);
+            else delta = std::numeric_limits<int>::max();
+
+            // cout << "beta = " << beta << endl;
+
+            // const JetDefinition::Recombiner *recombScheme;
+            // if (beta > 1) recombScheme = new GeneralERecombiner((double)1/(beta - 1));
+            // else recombScheme = new WinnerTakeAllRecombiner();
 
             UnnormalizedCutoffMeasure measure_function = UnnormalizedCutoffMeasure(beta, Rparam);
-            OnePass_Manual_Axes axes_finder = OnePass_Manual_Axes();
+            // UnnormalizedCutoffMeasure measure_function_xcone = UnnormalizedCutoffMeasure(beta, Rparam);
+            XConeCutoffMeasure measure_function_xcone = XConeCutoffMeasure(beta, Rparam);
+            // OriginalGeometricMeasure measure_function_xcone = OriginalGeometricMeasure(Rparam);
+
+            // AxesStruct *axes_finder;
+            // if (beta > 1) axes_finder = new AxesStruct(GenRecomb_GenKT_Axes(delta, power, Rparam));
+            // else axes_finder = new AxesStruct(WTA_GenKT_Axes(power, Rparam));
+            // else axes_finder = new AxesStruct(WTA_KT_Axes());
+            AxesStruct *axes_finder = new AxesStruct(GenRecomb_GenKT_Axes(delta, power, Rparam));
+
+            AxesStruct *axes_finder_onepass;
+            if (beta > 1 && beta <= 3) axes_finder_onepass = new AxesStruct(OnePass_GenRecomb_GenKT_Axes(delta, power, Rparam));
+            // if (beta == 1.0) axes_finder_onepass = new AxesStruct(OnePass_WTA_GenKT_Axes(power,Rparam));
+            // else if (beta == 1.0) axes_finder_onepass = new AxesStruct(OnePass_WTA_KT_Axes());
+            else axes_finder_onepass = axes_finder;
 
             vector<PseudoJet> final_bigjets;
             int njettiness = 6;
 
             Strategy strategy = Best;
-            JetDefinition *jetDef = new JetDefinition(genkt_algorithm, Rparam, power, recombScheme, strategy);
+            // JetDefinition *jetDef = new JetDefinition(genkt_algorithm, Rparam, power, recombScheme, strategy);
+            // ClusterSequence clustSeq(jet_constituents, *jetDef);
 
-            ClusterSequence clustSeq(jet_constituents, *jetDef);
+            // UnnormalizedCutoffMeasure measure_function_2jets = UnnormalizedCutoffMeasure(beta, grouping_radius);
+            // NjettinessPlugin njet_plugin_genrecomb_2jets(2, axes_finder->def(), measure_function_2jets);
+            // JetDefinition njet_def_genrecomb_2jets(&njet_plugin_genrecomb_2jets);
+            // njet_plugin_genrecomb_2jets.setAxes(clustSeq.exclusive_jets(2));
+            // ClusterSequence njet_cluster_genrecomb_2jets(jet_constituents, njet_def_genrecomb_2jets);
+            // const NjettinessExtras *extras_genrecomb_2jets = njettiness_extras(njet_cluster_genrecomb_2jets);
+            // vector<PseudoJet> jets_genrecomb_2jets = extras_genrecomb_2jets->jets();
 
-            UnnormalizedCutoffMeasure measure_function_2jets = UnnormalizedCutoffMeasure(beta, grouping_radius);
-            NjettinessPlugin njet_plugin_genrecomb_2jets(2, axes_finder, measure_function_2jets);
-            JetDefinition njet_def_genrecomb_2jets(&njet_plugin_genrecomb_2jets);
-            njet_plugin_genrecomb_2jets.setAxes(clustSeq.exclusive_jets(2));
-            ClusterSequence njet_cluster_genrecomb_2jets(jet_constituents, njet_def_genrecomb_2jets);
-            const NjettinessExtras *extras_genrecomb_2jets = njettiness_extras(njet_cluster_genrecomb_2jets);
-            vector<PseudoJet> jets_genrecomb_2jets = extras_genrecomb_2jets->jets();
+            // for (int i_jet = 0; i_jet < jets_genrecomb_2jets.size(); i_jet++) {
 
-            for (int i_jet = 0; i_jet < jets_genrecomb_2jets.size(); i_jet++) {
+            //   if (jets_genrecomb_2jets[i_jet].constituents().size() > 2) {
 
-              if (jets_genrecomb_2jets[i_jet].constituents().size() > 2) {
+            //     ClusterSequence clustSeq_subjet(jets_genrecomb_2jets[i_jet].constituents(), *jetDef);
+            //     vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
+            //     vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
 
-                ClusterSequence clustSeq_subjet(jets_genrecomb_2jets[i_jet].constituents(), *jetDef);
-                vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
-                vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
+            //     Nsubjettiness nsub3_manual(3, axes_finder->def(), UnnormalizedMeasure(beta));
+            //     Nsubjettiness nsub2_manual(2, axes_finder->def(), UnnormalizedMeasure(beta));
 
-                Nsubjettiness nsub3_manual(3, axes_finder, UnnormalizedMeasure(beta));
-                Nsubjettiness nsub2_manual(2, axes_finder, UnnormalizedMeasure(beta));
+            //     nsub3_manual.setAxes(subjet_axes3);
+            //     nsub2_manual.setAxes(subjet_axes2);
 
-                nsub3_manual.setAxes(subjet_axes3);
-                nsub2_manual.setAxes(subjet_axes2);
-
-                if (jets_genrecomb_2jets[i_jet].m() > 160 && jets_genrecomb_2jets[i_jet].m() < 240) {
-                  if (i_sample == 0) {
-                    TH1* tau32_ttbar_manual_6jet = (TH1*)tau32_ttbar_manual_6jet_hists.At(B);
-                    tau32_ttbar_manual_6jet->Fill((double)nsub3_manual.result(jets_genrecomb_2jets[i_jet])/nsub2_manual.result(jets_genrecomb_2jets[i_jet]));
-                  }
-                  if (i_sample == 1) {
-                    TH1* tau32_dijets_manual_6jet = (TH1*)tau32_dijets_manual_6jet_hists.At(B);
-                    tau32_dijets_manual_6jet->Fill((double)nsub3_manual.result(jets_genrecomb_2jets[i_jet])/nsub2_manual.result(jets_genrecomb_2jets[i_jet]));
-                  }
-                }
-              }
+            //     if (jets_genrecomb_2jets[i_jet].m() > 150 && jets_genrecomb_2jets[i_jet].m() < 200) {
+            //       if (i_sample == 0) {
+            //         TH1* tau32_ttbar_manual_6jet = (TH1*)tau32_ttbar_manual_6jet_hists.At(B);
+            //         tau32_ttbar_manual_6jet->Fill((double)nsub3_manual.result(jets_genrecomb_2jets[i_jet])/nsub2_manual.result(jets_genrecomb_2jets[i_jet]));
+            //       }
+            //       if (i_sample == 1) {
+            //         TH1* tau32_dijets_manual_6jet = (TH1*)tau32_dijets_manual_6jet_hists.At(B);
+            //         tau32_dijets_manual_6jet->Fill((double)nsub3_manual.result(jets_genrecomb_2jets[i_jet])/nsub2_manual.result(jets_genrecomb_2jets[i_jet]));
+            //       }
+            //     }
+            //   }
     
-              TH1* rawmass_ttbar_manual_2jets = (TH1*)rawmass_ttbar_manual_2jets_hists.At(B);
-              TH1* rawmass_dijets_manual_2jets = (TH1*)rawmass_dijets_manual_2jets_hists.At(B);
+            //   TH1* rawmass_ttbar_manual_2jets = (TH1*)rawmass_ttbar_manual_2jets_hists.At(B);
+            //   TH1* rawmass_dijets_manual_2jets = (TH1*)rawmass_dijets_manual_2jets_hists.At(B);
 
-              if (i_sample == 0) rawmass_ttbar_manual_2jets->Fill(jets_genrecomb_2jets[i_jet].m());
-              if (i_sample == 1) rawmass_dijets_manual_2jets->Fill(jets_genrecomb_2jets[i_jet].m());
-            }
+            //   if (i_sample == 0) rawmass_ttbar_manual_2jets->Fill(jets_genrecomb_2jets[i_jet].m());
+            //   if (i_sample == 1) rawmass_dijets_manual_2jets->Fill(jets_genrecomb_2jets[i_jet].m());
+            // }
 
             int initial_axes_num = njettiness;
 
-            vector<PseudoJet> exclusiveJets = clustSeq.exclusive_jets(initial_axes_num);
+            // vector<PseudoJet> exclusiveJets = clustSeq.exclusive_jets(initial_axes_num);
 
-            NjettinessPlugin njet_plugin_genrecomb(initial_axes_num, axes_finder, measure_function);
+            NjettinessPlugin njet_plugin_genrecomb(njettiness, axes_finder->def(), measure_function);
             JetDefinition njet_def_genrecomb(&njet_plugin_genrecomb);
-            njet_plugin_genrecomb.setAxes(exclusiveJets);
             ClusterSequence njet_cluster_genrecomb(jet_constituents, njet_def_genrecomb);
             const NjettinessExtras *extras_genrecomb = njettiness_extras(njet_cluster_genrecomb);
             vector<PseudoJet> axes_genrecomb = extras_genrecomb->axes();
             vector<PseudoJet> jets_genrecomb = extras_genrecomb->jets();
+            // vector<PseudoJet> min_manual_axes = findMinAxes(jet_constituents, axes_genrecomb, njettiness, beta, Rparam);
 
-            vector<PseudoJet> min_manual_axes = findMinAxes(jet_constituents, axes_genrecomb, njettiness, beta, Rparam);
-          // vector<PseudoJet> min_manual_axes = axes_genrecomb;
+            // cout << axes_finder_onepass->def().description() << endl;
 
-            NjettinessPlugin njet_plugin_min_manual(njettiness, axes_finder, measure_function);
+            NjettinessPlugin njet_plugin_min_manual(njettiness, axes_finder_onepass->def(), measure_function_xcone);
             JetDefinition njet_def_min_manual(&njet_plugin_min_manual);
-            njet_plugin_min_manual.setAxes(min_manual_axes);
-
-            ClusterSequenceArea njet_cluster_min_manual_area(jet_constituents, njet_def_min_manual, area_def);
+            // njet_plugin_min_manual.setAxes(axes_genrecomb);
+            // ClusterSequenceArea njet_cluster_min_manual_area(jet_constituents, njet_def_min_manual, area_def);
             ClusterSequence njet_cluster_min_manual(jet_constituents, njet_def_min_manual);
-            const NjettinessExtras *extras_min_manual = njettiness_extras(njet_cluster_min_manual);
-            vector<PseudoJet> min_manual_jets = njet_cluster_min_manual_area.inclusive_jets();
-          // vector<PseudoJet> min_manual_jets = extras_min_manual->jets();
+            // const NjettinessExtras *extras_min_manual = njettiness_extras(njet_cluster_min_manual);
+            // vector<PseudoJet> min_manual_jets = njet_cluster_min_manual_area.inclusive_jets();
+            vector<PseudoJet> min_manual_jets = njet_cluster_min_manual.inclusive_jets();
+            vector<PseudoJet> min_manual_axes = njet_cluster_min_manual.inclusive_jets();
 
-          // double grouping_radius = 1.5;
-            groupedJetsinfo jet_information = groupJets(min_manual_jets, grouping_radius, min_group_radius);
-            int triplet_counter = jet_information.triplet_counter;
-            vector<PseudoJet> massive_jets = jet_information.groupedJets;
-            vector<int> massive_subjet_counter = jet_information.numGroups;
+            NjettinessPlugin njet_plugin_min_manual_area(njettiness, Manual_Axes(), measure_function_xcone);
+            JetDefinition njet_def_min_manual_area(&njet_plugin_min_manual_area);
+            njet_plugin_min_manual_area.setAxes(min_manual_axes);
+            ClusterSequenceArea njet_cluster_min_manual_area(jet_constituents, njet_def_min_manual_area, area_def);
+            vector<PseudoJet> min_manual_area_jets = njet_cluster_min_manual_area.inclusive_jets();
 
-            for (int i_jet = 0; i_jet < min_manual_jets.size(); i_jet++) {
-              double area_jet = min_manual_jets[i_jet].area();
+
+            for (int i_jet = 0; i_jet < min_manual_area_jets.size(); i_jet++) {
+              double area_jet = min_manual_area_jets[i_jet].area();
               if (i_sample == 0) {
                 TH1* area_ttbar_manual = (TH1*)area_ttbar_manual_hists.At(B);
                 area_ttbar_manual->Fill(area_jet);
@@ -900,18 +1268,53 @@ int main(int argc, char* argv[]){
               }
             }
 
-            Selector hard_selector = SelectorNHardest(2);
-            final_bigjets = hard_selector(massive_jets);
+            // groupedJetsinfo jet_information = groupJets(min_manual_jets, grouping_radius, min_group_radius);
+            // int triplet_counter = jet_information.triplet_counter;
+            // vector<PseudoJet> massive_jets = jet_information.groupedJets;
+            // vector<int> massive_subjet_counter = jet_information.numGroups;
+
+            vector<vector<PseudoJet>> massive_jets = findTotalMinMass(min_manual_jets);
+            vector<PseudoJet> massive_minmass_jets;
+
+            for (int i = 0; i < massive_jets.size(); i++) {
+              PseudoJet temp_bigjet(0,0,0,0);
+              for (int j = 0; j < massive_jets[i].size(); j++) {
+                temp_bigjet = join(temp_bigjet, massive_jets[i][j]);
+              }
+
+              vector<PseudoJet> temp_minmass_jets = findMinMass(massive_jets[i], 2);
+              PseudoJet temp_minmass_jet(0,0,0,0);
+              for (int k = 0; k < temp_minmass_jets.size(); k++) {
+                temp_minmass_jet = join(temp_minmass_jet, temp_minmass_jets[k]);
+              }
+
+              massive_minmass_jets.push_back(temp_minmass_jet);
+              final_bigjets.push_back(temp_bigjet);
+            }
+
+            // Selector hard_selector = SelectorNHardest(2);
+            // final_bigjets = hard_selector(massive_jets);
+
+            TH1* rawmass_ttbar_manual = (TH1*)rawmass_ttbar_manual_hists.At(B);
+            TH1* rawmass_dijets_manual = (TH1*)rawmass_dijets_manual_hists.At(B);
+            TH1* rawmass_ttbar_manual_Wmasscut = (TH1*)rawmass_ttbar_manual_Wmasscut_hists.At(B);
+            TH1* rawmass_dijets_manual_Wmasscut = (TH1*)rawmass_dijets_manual_Wmasscut_hists.At(B);
+
             for (int i_jet = 0; i_jet < final_bigjets.size(); i_jet++) {
             // if (final_bigjets[i_jet].perp() > 200) {
               // volatility_event->Fill(final_bigjets[i_jet].m());
+              if (final_bigjets[i_jet].m() < 10) cout << "zero mass!!" << endl;
               if (i_sample == 0) {
-                TH1* rawmass_ttbar_manual = (TH1*)rawmass_ttbar_manual_hists.At(B);
                 rawmass_ttbar_manual->Fill(final_bigjets[i_jet].m());
+                if (massive_minmass_jets[i_jet].m() > 50) {
+                  rawmass_ttbar_manual_Wmasscut->Fill(final_bigjets[i_jet].m());
+                }
               }
               if (i_sample == 1) {
-                TH1* rawmass_dijets_manual = (TH1*)rawmass_dijets_manual_hists.At(B);
                 rawmass_dijets_manual->Fill(final_bigjets[i_jet].m());
+                if (massive_minmass_jets[i_jet].m() > 50) {
+                  rawmass_dijets_manual_Wmasscut->Fill(final_bigjets[i_jet].m());
+                }
               }
             // }
             }
@@ -928,7 +1331,7 @@ int main(int argc, char* argv[]){
             JetDefinition *jetDef_big = new JetDefinition(genkt_algorithm, Rparam, power, recombScheme_big, strategy);
             ClusterSequence clustSeq_big(jet_constituents, *jetDef_big);
 
-            NjettinessPlugin njet_plugin_2(2, axes_finder, measure_function_infinite);
+            NjettinessPlugin njet_plugin_2(2, Manual_Axes(), measure_function_infinite);
             JetDefinition njet_def_2(&njet_plugin_2);
             njet_plugin_2.setAxes(clustSeq_big.exclusive_jets(2));
             ClusterSequence njet_cluster_2(jet_constituents, njet_def_2);
@@ -936,37 +1339,63 @@ int main(int argc, char* argv[]){
             vector<PseudoJet> jets_2 = extras_2->jets();
 
             vector<PseudoJet> inclusiveJets_2, sortedJets_2, hardestJets_2;
-            JetDefinition *jetDef_2 = new JetDefinition(antikt_algorithm, JetDefinition::max_allowable_R, recombScheme_akt, strategy_akt);
+            JetDefinition *jetDef_2 = new JetDefinition(kt_algorithm, JetDefinition::max_allowable_R, recombScheme_akt, strategy_akt);
             ClusterSequence clustSeq_2(jet_constituents, *jetDef_2);
-            inclusiveJets_2 = clustSeq_2.inclusive_jets(0.0);
+            inclusiveJets_2 = clustSeq_2.exclusive_jets(2);
             sortedJets_2 = sorted_by_pt(inclusiveJets_2);
             hardestJets_2 = jet_selector(sortedJets_2);
 
             for (int i_bigjet = 0; i_bigjet < jets_2.size(); i_bigjet++) {
 
+            if (jets_2[i_bigjet].constituents().size() > 4) {
               // vector<PseudoJet> final_bigjets_2;
               int njettiness_2 = 3;
 
-              ClusterSequence clustSeq_2(jets_2[i_bigjet].constituents(), *jetDef);
-              NjettinessPlugin njet_plugin_2times3(njettiness_2, axes_finder, measure_function);
+              // ClusterSequence clustSeq_2(jets_2[i_bigjet].constituents(), *jetDef);
+
+              NjettinessPlugin njet_plugin_2times3(njettiness_2, axes_finder->def(), measure_function);
               JetDefinition njet_def_2times3(&njet_plugin_2times3);
-              njet_plugin_2times3.setAxes(clustSeq_2.exclusive_jets(njettiness_2));
               ClusterSequence njet_cluster_2times3(jets_2[i_bigjet].constituents(), njet_def_2times3);
               const NjettinessExtras *extras_2times3 = njettiness_extras(njet_cluster_2times3);
-              vector<PseudoJet> jets_2times3 = extras_2times3->jets();
+              vector<PseudoJet> axes_2times3_conical = extras_2times3->axes();
+              vector<PseudoJet> jets_2times3_conical = njet_cluster_2times3.inclusive_jets();
+
+              NjettinessPlugin njet_plugin_2times3_xcone(njettiness_2, axes_finder_onepass->def(), measure_function_xcone);
+              JetDefinition njet_def_2times3_xcone(&njet_plugin_2times3_xcone);
+              // njet_plugin_2times3_xcone.setAxes(axes_2times3_conical);
+              ClusterSequence njet_cluster_2times3_xcone(jets_2[i_bigjet].constituents(), njet_def_2times3_xcone);
+              const NjettinessExtras *extras_2times3_xcone = njettiness_extras(njet_cluster_2times3_xcone);
+              // vector<PseudoJet> jets_2times3 = extras_2times3->jets();
+              vector<PseudoJet> jets_2times3 = njet_cluster_2times3_xcone.inclusive_jets();
+
 
               PseudoJet bigjet_2(0,0,0,0);
               PseudoJet smalljet_2(0,0,0,0);
+
+              TH1* avgdistance_ttbar_manual = (TH1*)avgdistance_ttbar_manual_hists.At(B);
+              TH1* avgdistance_dijets_manual = (TH1*)avgdistance_dijets_manual_hists.At(B);
+
+              double avgdist = 0;
               for (int i_jet = 0; i_jet < jets_2times3.size(); i_jet++) {
                 bigjet_2 = join(bigjet_2, jets_2times3[i_jet]);
               }
+              double min_avgdistance = std::numeric_limits<int>::max();
+              double max_avgdistance = 0;
+              for (int i_jet = 0; i_jet < jets_2times3.size(); i_jet++) {
+                avgdist += jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]);
+                if (jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]) < min_avgdistance) min_avgdistance = jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]);
+                if (jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]) > max_avgdistance) max_avgdistance = jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]);
+                // if (i_sample == 0) avgdistance_ttbar_manual->Fill(jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]));
+                // if (i_sample == 1) avgdistance_dijets_manual->Fill(jets_2times3[i_jet].perp()*bigjet_2.delta_R(jets_2times3[i_jet]));
+              }
+
               vector<PseudoJet> jets_2times3_minmass = findMinMass(jets_2times3, 2);
               for (int i_jet = 0; i_jet < jets_2times3_minmass.size(); i_jet++) {
                 smalljet_2 = join(smalljet_2, jets_2times3_minmass[i_jet]);
               }
               double min_mass = smalljet_2.m();
 
-              // volatility_event->Fill(bigjet_2.m());
+              double expected_dist = (double)2*bigjet_2.m()/bigjet_2.perp();
 
               TH1* mass_ttbar_manual_2groups = (TH1*)mass_ttbar_manual_2groups_hists.At(B);
               TH1* minmass_ttbar_manual_2groups = (TH1*)minmass_ttbar_manual_2groups_hists.At(B);
@@ -974,22 +1403,30 @@ int main(int argc, char* argv[]){
               TH1* minmass_dijets_manual_2groups = (TH1*)minmass_dijets_manual_2groups_hists.At(B);
               TH1* mass_ttbar_manual_2groups_Wmasscut = (TH1*)mass_ttbar_manual_2groups_Wmasscut_hists.At(B);
               TH1* mass_dijets_manual_2groups_Wmasscut = (TH1*)mass_dijets_manual_2groups_Wmasscut_hists.At(B);
-              
+              TH1* massratio_ttbar_manual_3jet4jet_2groups = (TH1*)massratio_ttbar_manual_3jet4jet_2groups_hists.At(B);
+              TH1* massratio_dijets_manual_3jet4jet_2groups = (TH1*)massratio_dijets_manual_3jet4jet_2groups_hists.At(B);
+              TH1* helicityangle_ttbar_manual = (TH1*)helicityangle_ttbar_manual_hists.At(B);
+              TH1* helicityangle_dijets_manual = (TH1*)helicityangle_dijets_manual_hists.At(B);
+
               if (i_sample == 0) {
                 mass_ttbar_manual_2groups->Fill(bigjet_2.m());
                 minmass_ttbar_manual_2groups->Fill(min_mass);
                 if (min_mass > 50) mass_ttbar_manual_2groups_Wmasscut->Fill(bigjet_2.m());
+                // if (min_mass > 50 && min_mass < 100) mass_ttbar_manual_2groups_Wmasscut->Fill(bigjet_2.m());
+                if ((min_mass > 50 && min_mass < 100) && (bigjet_2.m() > 150 && bigjet_2.m() < 200)) massratio_ttbar_manual_3jet4jet_2groups->Fill((double)min_mass/bigjet_2.m());
               }
               if (i_sample == 1) {
                 mass_dijets_manual_2groups->Fill(bigjet_2.m());
                 minmass_dijets_manual_2groups->Fill(min_mass);
                 if (min_mass > 50) mass_dijets_manual_2groups_Wmasscut->Fill(bigjet_2.m());
+                // if (min_mass > 50 && min_mass < 100) mass_dijets_manual_2groups_Wmasscut->Fill(bigjet_2.m());
+                if ((min_mass > 50 && min_mass < 100) && (bigjet_2.m() > 150 && bigjet_2.m() < 200)) massratio_dijets_manual_3jet4jet_2groups->Fill((double)min_mass/bigjet_2.m());
               }
 
             //now for the akt jets
               vector<PseudoJet> inclusiveJets_2times3, sortedJets_2times3, hardestJets_2times3;
               JetDefinition *jetDef_2times3 = new JetDefinition(antikt_algorithm, Rparam, recombScheme_akt, strategy_akt);
-              ClusterSequence clustSeq_2times3(jet_constituents, *jetDef_2times3);
+              ClusterSequence clustSeq_2times3(hardestJets_2[i_bigjet].constituents(), *jetDef_2times3);
               inclusiveJets_2times3 = clustSeq_2times3.inclusive_jets(0.0);
               sortedJets_2times3 = sorted_by_pt(inclusiveJets_2times3);
               Selector threejet_selector = SelectorNHardest(njettiness_2);
@@ -1010,59 +1447,89 @@ int main(int argc, char* argv[]){
                 mass_ttbar_antikt_2groups->Fill(bigjet_2_akt.m());
                 minmass_ttbar_antikt_2groups->Fill(min_mass_akt);
                 if (min_mass_akt > 50) mass_ttbar_antikt_2groups_Wmasscut->Fill(bigjet_2_akt.m());
+                // if (min_mass_akt > 50 && min_mass_akt < 100) mass_ttbar_antikt_2groups_Wmasscut->Fill(bigjet_2_akt.m());
               }
               if (i_sample == 1) {
                 mass_dijets_antikt_2groups->Fill(bigjet_2_akt.m());
                 minmass_dijets_antikt_2groups->Fill(min_mass_akt);
                 if (min_mass_akt > 50) mass_dijets_antikt_2groups_Wmasscut->Fill(bigjet_2_akt.m());
+                // if (min_mass_akt > 50 && min_mass_akt < 100) mass_dijets_antikt_2groups_Wmasscut->Fill(bigjet_2_akt.m());
               }
 
-              if (bigjet_2.constituents().size() > 2) {
+              Nsubjettiness nsub3_manual(3, axes_finder->def(), UnnormalizedMeasure(beta));
+              Nsubjettiness nsub2_manual(2, axes_finder->def(), UnnormalizedMeasure(beta));
 
-                ClusterSequence clustSeq_subjet(bigjet_2.constituents(), *jetDef);
-                vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
-                vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
+              if (bigjet_2.has_structure()) {
 
-                Nsubjettiness nsub3_manual(3, axes_finder, UnnormalizedMeasure(beta));
-                Nsubjettiness nsub2_manual(2, axes_finder, UnnormalizedMeasure(beta));
+                // ClusterSequence clustSeq_subjet(bigjet_2.constituents(), *jetDef);
+                // ClusterSequence clustSeq_subjet(jets_2[i_bigjet].constituents(), *jetDef);
+                // vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
+                // vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
 
-                nsub3_manual.setAxes(subjet_axes3);
-                nsub2_manual.setAxes(subjet_axes2);
+                // nsub3_manual.setAxes(subjet_axes3);
+                // nsub2_manual.setAxes(subjet_axes2);
+
+                TH1* tau32_ttbar_manual_2groups = (TH1*)tau32_ttbar_manual_2groups_hists.At(B);
+                TH1* tau32_dijets_manual_2groups = (TH1*)tau32_dijets_manual_2groups_hists.At(B);
                 
-                if (bigjet_2.m() > 160 && bigjet_2.m() < 240) {
-                  if (i_sample == 0) {
-                    TH1* tau32_ttbar_manual_2groups = (TH1*)tau32_ttbar_manual_2groups_hists.At(B);
-                    tau32_ttbar_manual_2groups->Fill((double)nsub3_manual.result(bigjet_2)/nsub2_manual.result(bigjet_2));
-                  }
-                  if (i_sample == 1) {
-                    TH1* tau32_dijets_manual_2groups = (TH1*)tau32_dijets_manual_2groups_hists.At(B);
-                    tau32_dijets_manual_2groups->Fill((double)nsub3_manual.result(bigjet_2)/nsub2_manual.result(bigjet_2));
-                  }
+                if (bigjet_2.m() > 150 && bigjet_2.m() < 200) {
+                  if (i_sample == 0) tau32_ttbar_manual_2groups->Fill((double)nsub3_manual.result(bigjet_2)/nsub2_manual.result(bigjet_2));
+                  if (i_sample == 1) tau32_dijets_manual_2groups->Fill((double)nsub3_manual.result(bigjet_2)/nsub2_manual.result(bigjet_2));
+                  // if (i_sample == 0) tau32_ttbar_manual_2groups->Fill((double)nsub3_manual.result(jets_2[i_bigjet])/nsub2_manual.result(jets_2[i_bigjet]));
+                  // if (i_sample == 1) tau32_dijets_manual_2groups->Fill((double)nsub3_manual.result(jets_2[i_bigjet])/nsub2_manual.result(jets_2[i_bigjet]));
                 }
               }
 
 
             // NOW FOR THE 4 CHOOSE 3 METHOD
 
-              NjettinessPlugin njet_plugin_2times4(njettiness_2 + 1, axes_finder, measure_function);
+              int njettiness_extra = 1;
+
+              NjettinessPlugin njet_plugin_2times4(njettiness_2 + njettiness_extra, axes_finder->def(), measure_function);
               JetDefinition njet_def_2times4(&njet_plugin_2times4);
-              njet_plugin_2times4.setAxes(clustSeq_2.exclusive_jets(njettiness_2 + 1));
+              // njet_plugin_2times4.setAxes(clustSeq_2.exclusive_jets(njettiness_2 + njettiness_extra));
               ClusterSequence njet_cluster_2times4(jets_2[i_bigjet].constituents(), njet_def_2times4);
               const NjettinessExtras *extras_2times4 = njettiness_extras(njet_cluster_2times4);
-              vector<PseudoJet> jets_2times4 = extras_2times4->jets();
+              // vector<PseudoJet> jets_2times4 = extras_2times4->jets();
+              vector<PseudoJet> jets_2times4 = njet_cluster_2times4.inclusive_jets();
 
               PseudoJet bigjet_2_improved(0,0,0,0);
+              PseudoJet bigjet_2_improved_maxperp(0,0,0,0);
               PseudoJet smalljet_2_improved(0,0,0,0);
-              vector<PseudoJet> jets_2times3_improved = findMinMass(jets_2times4, 3);
+              vector<PseudoJet> jets_2times3_improved = findMinMass(jets_2times4, 3, zfrac);
               // vector<PseudoJet> jets_2times3_improved = findMaxPerp(jets_2times4, 3);
+              // vector<PseudoJet> jets_2times3_improved_maxperp = findMaxPerp(jets_2times4, 3);
               vector<PseudoJet> jets_2times3_improved_minmass = findMinMass(jets_2times3_improved, 2);
+
+              TH1* avgdistance_improved_ttbar_manual = (TH1*)avgdistance_improved_ttbar_manual_hists.At(B);
+              TH1* avgdistance_improved_dijets_manual = (TH1*)avgdistance_improved_dijets_manual_hists.At(B);
+
+              double avgdist_improved = 0;
               for (int i_jet = 0; i_jet < jets_2times3_improved.size(); i_jet++) {
                 bigjet_2_improved = join(bigjet_2_improved, jets_2times3_improved[i_jet]);
+                // bigjet_2_improved_maxperp = join(bigjet_2_improved_maxperp, jets_2times3_improved_maxperp[i_jet]);
+              }
+              double max_avgdistance_improved = 0;
+              for (int i_jet = 0; i_jet < jets_2times3_improved.size(); i_jet++) {
+                avgdist_improved += jets_2times3_improved[i_jet].perp()*bigjet_2_improved.delta_R(jets_2times3_improved[i_jet]);
+                if (jets_2times3_improved[i_jet].perp()*bigjet_2_improved.delta_R(jets_2times3_improved[i_jet]) > max_avgdistance_improved) max_avgdistance_improved = jets_2times3_improved[i_jet].perp()*bigjet_2_improved.delta_R(jets_2times3_improved[i_jet]);
+                // if (i_sample == 0) avgdistance_improved_ttbar_manual->Fill(jets_2times3_improved[i_jet].perp()*bigjet_2_improved.delta_R(jets_2times3_improved[i_jet]));
+                // if (i_sample == 1) avgdistance_improved_dijets_manual->Fill(jets_2times3_improved[i_jet].perp()*bigjet_2_improved.delta_R(jets_2times3_improved[i_jet]));
               }
               for (int i_jet = 0; i_jet < jets_2times3_improved_minmass.size(); i_jet++) {
                 smalljet_2_improved = join(smalljet_2_improved, jets_2times3_improved_minmass[i_jet]);
               }
               double min_mass_improved = smalljet_2_improved.m();
+
+              double mass_mean = 0.5*(bigjet_2.m() + bigjet_2_improved.m());
+              double mass_std = abs(bigjet_2.m() - bigjet_2_improved.m());
+
+              // double dist1_improved = jets_2times3_improved[0].delta_R(jets_2times3_improved[1]);
+              // double dist2_improved = jets_2times3_improved[0].delta_R(jets_2times3_improved[2]);
+              // double dist3_improved = jets_2times3_improved[1].delta_R(jets_2times3_improved[2]);
+              // double avgdist_improved = (double)(dist1_improved + dist2_improved + dist3_improved)/3.;
+              double expected_dist_improved = (double)2*bigjet_2_improved.m()/bigjet_2_improved.perp();
+              // double distance_ratio_improved = (double)avgdist_improved/expected_dist_improved;
 
               // volatility_event->Fill(final_bigjets_2[i_jet].m());
               TH1* mass_ttbar_manual_2groups_improved = (TH1*)mass_ttbar_manual_2groups_improved_hists.At(B);
@@ -1079,17 +1546,28 @@ int main(int argc, char* argv[]){
               TH2* mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare = (TH2*)mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare_hists.At(B);
               TH2* mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare = (TH2*)mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare_hists.At(B);
 
+              TH1* massdiff_ttbar_manual_3jet4jet_2groups = (TH1*)massdiff_ttbar_manual_3jet4jet_2groups_hists.At(B);
+              TH1* massdiff_dijets_manual_3jet4jet_2groups = (TH1*)massdiff_dijets_manual_3jet4jet_2groups_hists.At(B);
+              TH1* massratio_ttbar_manual_3jet4jet_2groups_improved = (TH1*)massratio_ttbar_manual_3jet4jet_2groups_improved_hists.At(B);
+              TH1* massratio_dijets_manual_3jet4jet_2groups_improved = (TH1*)massratio_dijets_manual_3jet4jet_2groups_improved_hists.At(B);
+
               if (i_sample == 0) {
                 mass_ttbar_manual_2groups_improved->Fill(bigjet_2_improved.m());
                 minmass_ttbar_manual_2groups_improved->Fill(min_mass_improved);
                 mass_ttbar_manual_3jet4jet_2groups_compare->Fill(bigjet_2.m(), bigjet_2_improved.m());
                 minmass_ttbar_manual_2jet3jet_2groups_compare->Fill(min_mass, min_mass_improved);
-                if (min_mass_improved > 50) mass_ttbar_manual_2groups_improved_Wmasscut->Fill(bigjet_2_improved.m());
-                if (min_mass > 50 && min_mass_improved > 50) mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2.m(), bigjet_2_improved.m());
+                massdiff_ttbar_manual_3jet4jet_2groups->Fill((double)mass_std/mass_mean);
 
-                if ((bigjet_2.m() > 160 && bigjet_2.m() < 240) || (bigjet_2_improved.m() > 160 && bigjet_2_improved.m() < 240)) {
+                if (min_mass_improved > 50) mass_ttbar_manual_2groups_improved_Wmasscut->Fill(bigjet_2_improved.m());
+                if ((min_mass > 50 && min_mass < 100) || (min_mass_improved > 50 && min_mass_improved < 100)) mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2.m(), bigjet_2_improved.m());
+                if (((bigjet_2.m() > 150 && bigjet_2.m() < 200) || (bigjet_2_improved.m() > 150 && bigjet_2_improved.m() < 200)) ){
                   total_ttbar_events[B + 2]++;
-                  if (min_mass > 50 && min_mass_improved > 50) total_ttbar_Wmasscut_events[B + 2]++;
+                  if ((min_mass > 50 && min_mass < 100) || (min_mass_improved > 50 && min_mass_improved < 100)) {
+                    avgdistance_ttbar_manual->Fill(avgdist);
+                    avgdistance_improved_ttbar_manual->Fill(avgdist_improved);
+                    helicityangle_ttbar_manual->Fill(avgdist/bigjet_2.m());
+                    total_ttbar_Wmasscut_events[B + 2]++;
+                  }
                 }
               }
               if (i_sample == 1) {
@@ -1097,27 +1575,37 @@ int main(int argc, char* argv[]){
                 minmass_dijets_manual_2groups_improved->Fill(min_mass_improved);
                 mass_dijets_manual_3jet4jet_2groups_compare->Fill(bigjet_2.m(), bigjet_2_improved.m());
                 minmass_dijets_manual_2jet3jet_2groups_compare->Fill(min_mass, min_mass_improved);
+                massdiff_dijets_manual_3jet4jet_2groups->Fill((double)mass_std/mass_mean);
+                // massratio_dijets_manual_3jet4jet_2groups_improved->Fill((double)bigjet_2_improved.m()/bigjet_2_improved_maxperp.m());
                 if (min_mass_improved > 50) mass_dijets_manual_2groups_improved_Wmasscut->Fill(bigjet_2_improved.m());
-                if (min_mass > 50 && min_mass_improved > 50) mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2.m(), bigjet_2_improved.m());
-
-                if ((bigjet_2.m() > 160 && bigjet_2.m() < 240) || (bigjet_2_improved.m() > 160 && bigjet_2_improved.m() < 240)) {
+                if ((min_mass > 50 && min_mass < 100) || (min_mass_improved > 50 && min_mass_improved < 100)) mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2.m(), bigjet_2_improved.m());
+                if (((bigjet_2.m() > 150 && bigjet_2.m() < 200) || (bigjet_2_improved.m() > 150 && bigjet_2_improved.m() < 200)) ){
+                  // && nsub_32_wta.result(hardestJets_std[i_bigjet]) < 0.7) {
                   total_dijets_events[B + 2]++;
-                  if (min_mass > 50 && min_mass_improved > 50) total_dijets_Wmasscut_events[B + 2]++;
+                  if ((min_mass > 50 && min_mass < 100) || (min_mass_improved > 50 && min_mass_improved < 100)) {
+                    avgdistance_dijets_manual->Fill(avgdist);
+                    avgdistance_improved_dijets_manual->Fill(avgdist_improved);
+                    // mass_dijets_manual_3jet4jet_2groups_compare->Fill(avgdist, avgdist_improved);
+                    helicityangle_dijets_manual->Fill(avgdist/bigjet_2.m());
+                    // if (avgdist/bigjet_2.m() > 0.6) { 
+                      total_dijets_Wmasscut_events[B + 2]++;
+                    // }
+                  }
                 }
               }
 
             //ANTIKT 4 CHOOSE 3
               vector<PseudoJet> inclusiveJets_2times4, sortedJets_2times4, hardestJets_2times4;
               JetDefinition *jetDef_2times4 = new JetDefinition(antikt_algorithm, Rparam, recombScheme_akt, strategy_akt);
-              ClusterSequence clustSeq_2times4(jet_constituents, *jetDef_2times4);
+              ClusterSequence clustSeq_2times4(jets_2[i_bigjet].constituents(), *jetDef_2times4);
               inclusiveJets_2times4 = clustSeq_2times4.inclusive_jets(0.0);
               sortedJets_2times4 = sorted_by_pt(inclusiveJets_2times4);
-              Selector fourjet_selector = SelectorNHardest(njettiness_2 + 1);
+              Selector fourjet_selector = SelectorNHardest(njettiness_2 + njettiness_extra);
               hardestJets_2times4 = fourjet_selector(sortedJets_2times4);
 
               PseudoJet bigjet_2_akt_improved(0,0,0,0);
               PseudoJet smalljet_2_akt_improved(0,0,0,0);
-              vector<PseudoJet> hardestJets_2times3_improved = findMinMass(hardestJets_2times4, 3);
+              vector<PseudoJet> hardestJets_2times3_improved = findMinMass(hardestJets_2times4, 3, zfrac);
               // vector<PseudoJet> hardestJets_2times3_improved = findMaxPerp(hardestJets_2times4, 3);
               vector<PseudoJet> hardestJets_2times3_improved_minmass = findMinMass(hardestJets_2times3_improved, 2);
 
@@ -1129,17 +1617,25 @@ int main(int argc, char* argv[]){
               }
               double min_mass_akt_improved = smalljet_2_akt_improved.m();
 
+              double mass_mean_akt = 0.5*(bigjet_2_akt.m() + bigjet_2_akt_improved.m());
+              double mass_std_akt = abs(bigjet_2_akt.m() - bigjet_2_akt_improved.m());
+
               if (i_sample == 0) {
                 mass_ttbar_antikt_2groups_improved->Fill(bigjet_2_akt_improved.m());
                 minmass_ttbar_antikt_2groups_improved->Fill(min_mass_akt_improved);
                 mass_ttbar_antikt_3jet4jet_2groups_compare->Fill(bigjet_2_akt.m(), bigjet_2_akt_improved.m());
                 minmass_ttbar_antikt_2jet3jet_2groups_compare->Fill(min_mass_akt, min_mass_akt_improved);
+                // massdiff_ttbar_antikt_3jet4jet_2groups->Fill(bigjet_2_akt.m() - bigjet_2_akt_improved.m());
+                massdiff_ttbar_antikt_3jet4jet_2groups->Fill((double)mass_std_akt/mass_mean_akt);
+                massratio_ttbar_antikt_3jet4jet_2groups->Fill((double)min_mass_akt/bigjet_2_akt.m());
+                massratio_ttbar_antikt_3jet4jet_2groups_improved->Fill((double)min_mass_akt_improved/bigjet_2_akt_improved.m());
                 if (min_mass_akt_improved > 50) mass_ttbar_antikt_2groups_improved_Wmasscut->Fill(bigjet_2_akt_improved.m());
-                if (min_mass_akt > 50 && min_mass_akt_improved > 50) mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2_akt.m(), bigjet_2_akt_improved.m());
-
-                if ((bigjet_2_akt.m() > 160 && bigjet_2_akt.m() < 240) || (bigjet_2_akt_improved.m() > 160 && bigjet_2_akt_improved.m() < 240)) {
+                if ((min_mass_akt > 50 && min_mass_akt < 100) || (min_mass_akt_improved > 50 && min_mass_improved < 100)) mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2_akt.m(), bigjet_2_akt_improved.m());
+                if ((bigjet_2_akt.m() > 150 && bigjet_2_akt.m() < 200) || (bigjet_2_akt_improved.m() > 150 && bigjet_2_akt_improved.m() < 200)) {
                   total_ttbar_events[1]++;
-                  if (min_mass_akt > 50 && min_mass_akt_improved > 50) total_ttbar_Wmasscut_events[1]++;
+                  if ((min_mass_akt > 50 && min_mass_akt < 100) || (min_mass_akt_improved > 50 && min_mass_improved < 100)) {
+                    total_ttbar_Wmasscut_events[1]++;
+                  }
                 }
               }
               if (i_sample == 1) {
@@ -1147,71 +1643,114 @@ int main(int argc, char* argv[]){
                 minmass_dijets_antikt_2groups_improved->Fill(min_mass_akt_improved);
                 mass_dijets_antikt_3jet4jet_2groups_compare->Fill(bigjet_2_akt.m(), bigjet_2_akt_improved.m());
                 minmass_dijets_antikt_2jet3jet_2groups_compare->Fill(min_mass_akt, min_mass_akt_improved);
+                // massdiff_dijets_antikt_3jet4jet_2groups->Fill(bigjet_2_akt.m() - bigjet_2_akt_improved.m());
+                massdiff_dijets_antikt_3jet4jet_2groups->Fill((double)mass_std_akt/mass_mean_akt);
+                massratio_dijets_antikt_3jet4jet_2groups->Fill((double)min_mass_akt/bigjet_2_akt.m());
+                massratio_dijets_antikt_3jet4jet_2groups_improved->Fill((double)min_mass_akt_improved/bigjet_2_akt_improved.m());
                 if (min_mass_akt_improved > 50) mass_dijets_antikt_2groups_improved_Wmasscut->Fill(bigjet_2_akt_improved.m());
-                if (min_mass_akt > 50 && min_mass_akt_improved > 50) mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2_akt.m(), bigjet_2_akt_improved.m());
-
-                if ((bigjet_2_akt.m() > 160 && bigjet_2_akt.m() < 240) || (bigjet_2_akt_improved.m() > 160 && bigjet_2_akt_improved.m() < 240)) {
+                if ((min_mass_akt > 50 && min_mass_akt < 100) || (min_mass_akt_improved > 50 && min_mass_improved < 100)) mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare->Fill(bigjet_2_akt.m(), bigjet_2_akt_improved.m());
+                if ((bigjet_2_akt.m() > 150 && bigjet_2_akt.m() < 200) || (bigjet_2_akt_improved.m() > 150 && bigjet_2_akt_improved.m() < 200)) {
                   total_dijets_events[1]++;
-                  if (min_mass_akt > 50 && min_mass_akt_improved > 50) total_dijets_Wmasscut_events[1]++;
-                }
-              }
-
-              if (bigjet_2_improved.constituents().size() > 2) {
-
-                ClusterSequence clustSeq_subjet(bigjet_2_improved.constituents(), *jetDef);
-                vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
-                vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
-
-                Nsubjettiness nsub3_manual(3, axes_finder, UnnormalizedMeasure(beta));
-                Nsubjettiness nsub2_manual(2, axes_finder, UnnormalizedMeasure(beta));
-
-                nsub3_manual.setAxes(subjet_axes3);
-                nsub2_manual.setAxes(subjet_axes2);
-
-                if (bigjet_2_improved.m() > 160 && bigjet_2_improved.m() < 240) {
-                  if (i_sample == 0) {
-                    TH1* tau32_ttbar_manual_2groups_improved = (TH1*)tau32_ttbar_manual_2groups_improved_hists.At(B);
-                    tau32_ttbar_manual_2groups_improved->Fill((double)nsub3_manual.result(bigjet_2_improved)/nsub2_manual.result(bigjet_2_improved));
-                  }
-                  if (i_sample == 1) {
-                    TH1* tau32_dijets_manual_2groups_improved = (TH1*)tau32_dijets_manual_2groups_improved_hists.At(B);
-                    tau32_dijets_manual_2groups_improved->Fill((double)nsub3_manual.result(bigjet_2_improved)/nsub2_manual.result(bigjet_2_improved));
+                  if ((min_mass_akt > 50 && min_mass_akt < 100) || (min_mass_akt_improved > 50 && min_mass_improved < 100)) {
+                    total_dijets_Wmasscut_events[1]++;
                   }
                 }
               }
 
-              // vector<PseudoJet> final_bigjet_bigcone_constituents;
-              // for (int i_part = 0; i_part < jet_constituents.size(); i_part++) {
-              //   if (temp_jet_improved.delta_R(jet_constituents[i_part]) < 1.0) final_bigjet_bigcone_constituents.push_back(jet_constituents[i_part]);
-              // }
+              if (abs(beta - 1) < epsilon && will_display && bigjet_2.m() > 150 && bigjet_2.m() < 200) {
 
-              // PseudoJet final_bigjet_bigcone(0,0,0,0);
-              // for (int i_const = 0; i_const < final_bigjet_bigcone_constituents.size(); i_const++) {
-              //   final_bigjet_bigcone = join(final_bigjet_bigcone, final_bigjet_bigcone_constituents[i_const]);
-              // }
+            //   Double_t ghost_perp = 0.001;
+            //   Double_t n_ghosts = 50;
+            //   for (int i_ghosts = 0; i_ghosts < n_ghosts; i_ghosts++) {
+            //     for (int j_ghosts = 0; j_ghosts < n_ghosts; j_ghosts++) {
+            //       Double_t ghost_eta = -5 + (double)(10/n_ghosts)*i_ghosts;
+            //       Double_t ghost_phi = (double)(2*TMath::Pi()/n_ghosts)*j_ghosts;
+            //       PseudoJet ghost(ghost_perp*TMath::Cos(ghost_phi),ghost_perp*TMath::Sin(ghost_phi),
+            //         ghost_perp*TMath::SinH(ghost_eta),ghost_perp*TMath::CosH(ghost_eta));
+            //       jet_constituents.push_back(ghost);
+            //       // final_jets_2_improved_constituents.push_back(ghost);
+            //     }
+            //   } 
 
-              // ClusterSequence clustSeq_subjet(final_bigjet_bigcone.constituents(), *jetDef);
-              // cout << final_bigjet_bigcone.constituents().size() << endl;
-              // vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
-              // vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
+                // for (int i = 0; i < 3; i++) {
+                if (bigjet_2.has_structure() && bigjet_2_improved.has_structure()) {
+                  vector<PseudoJet> constituents = bigjet_2.constituents();
+                  for (int i_const = 0; i_const < constituents.size(); i_const++) {
+                    subjet_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
+                  }
 
-              // Nsubjettiness nsub3_manual(3, axes_finder, UnnormalizedMeasure(beta));
-              // Nsubjettiness nsub2_manual(2, axes_finder, UnnormalizedMeasure(beta));
+                  vector<PseudoJet> constituents_improved = bigjet_2_improved.constituents();
+                  for (int i_const = 0; i_const < constituents_improved.size(); i_const++) {
+                    subjet_display_2->Fill(constituents_improved[i_const].eta(), constituents_improved[i_const].phi());
+                  }
+                }
+              }
 
-              // nsub3_manual.setAxes(subjet_axes3);
-              // nsub2_manual.setAxes(subjet_axes2);
+              if (bigjet_2_improved.has_structure()) {
 
-              // if (temp_jet_improved.m() > 160 && temp_jet_improved.m() < 240) {
-              //   if (i_sample == 0) {
-              //     TH1* tau32_ttbar_manual_2groups_bigcone = (TH1*) tau32_ttbar_manual_2groups_bigcone_hists.At(B);
-              //     tau32_ttbar_manual_2groups_bigcone->Fill((double)nsub3_manual.result(final_bigjet_bigcone)/nsub2_manual.result(final_bigjet_bigcone));
-              //   }
-              //   if (i_sample == 1) {
-              //     TH1* tau32_dijets_manual_2groups_bigcone = (TH1*) tau32_dijets_manual_2groups_bigcone_hists.At(B);
-              //     tau32_dijets_manual_2groups_bigcone->Fill((double)nsub3_manual.result(final_bigjet_bigcone)/nsub2_manual.result(final_bigjet_bigcone));
-              //   }
-              // }
-              // }
+                TH1* tau32_ttbar_manual_2groups_improved = (TH1*)tau32_ttbar_manual_2groups_improved_hists.At(B);
+                TH1* tau32_dijets_manual_2groups_improved = (TH1*)tau32_dijets_manual_2groups_improved_hists.At(B);
+                TH2* tau32_ttbar_manual_3jet4jet_2groups_compare = (TH2*)tau32_ttbar_manual_3jet4jet_2groups_compare_hists.At(B);
+                TH2* tau32_dijets_manual_3jet4jet_2groups_compare = (TH2*)tau32_dijets_manual_3jet4jet_2groups_compare_hists.At(B);
+
+                // ClusterSequence clustSeq_subjet_improved(bigjet_2_improved.constituents(), *jetDef);
+                // vector<PseudoJet> subjet_axes3_improved = clustSeq_subjet_improved.exclusive_jets(3);
+                // vector<PseudoJet> subjet_axes2_improved = clustSeq_subjet_improved.exclusive_jets(2);
+
+                Nsubjettiness nsub3_manual_improved(3, axes_finder->def(), UnnormalizedMeasure(beta));
+                Nsubjettiness nsub2_manual_improved(2, axes_finder->def(), UnnormalizedMeasure(beta));
+
+                // nsub3_manual_improved.setAxes(subjet_axes3_improved);
+                // nsub2_manual_improved.setAxes(subjet_axes2_improved);
+
+                if (bigjet_2_improved.m() > 150 && bigjet_2_improved.m() < 200) {
+                  if (i_sample == 0) tau32_ttbar_manual_2groups_improved->Fill((double)nsub3_manual_improved.result(bigjet_2_improved)/nsub2_manual_improved.result(bigjet_2_improved));
+                  if (i_sample == 1) tau32_dijets_manual_2groups_improved->Fill((double)nsub3_manual_improved.result(bigjet_2_improved)/nsub2_manual_improved.result(bigjet_2_improved));
+                }
+
+                if((bigjet_2.m() > 150 && bigjet_2.m() < 200) || (bigjet_2_improved.m() > 150 && bigjet_2_improved.m() < 200)) {
+                  // if (i_sample == 0) tau32_ttbar_manual_3jet4jet_2groups_compare->Fill((double)nsub3_manual.result(bigjet_2)/nsub2_manual.result(bigjet_2), (double)nsub3_manual_improved.result(bigjet_2_improved)/nsub2_manual_improved.result(bigjet_2_improved));
+                  // if (i_sample == 1) tau32_dijets_manual_3jet4jet_2groups_compare->Fill((double)nsub3_manual.result(bigjet_2)/nsub2_manual.result(bigjet_2), (double)nsub3_manual_improved.result(bigjet_2_improved)/nsub2_manual_improved.result(bigjet_2_improved));
+                  if (i_sample == 0) tau32_ttbar_manual_3jet4jet_2groups_compare->Fill(expected_dist, expected_dist_improved);
+                  if (i_sample == 1) tau32_dijets_manual_3jet4jet_2groups_compare->Fill(expected_dist, expected_dist_improved);
+                }
+              }
+
+                vector<PseudoJet> final_bigjet_bigcone_constituents;
+                for (int i_part = 0; i_part < jet_constituents.size(); i_part++) {
+                  if (bigjet_2.delta_R(jet_constituents[i_part]) < min(1.0, 2*bigjet_2.m()/bigjet_2.perp())) final_bigjet_bigcone_constituents.push_back(jet_constituents[i_part]);
+                }
+
+                PseudoJet final_bigjet_bigcone(0,0,0,0);
+                for (int i_const = 0; i_const < final_bigjet_bigcone_constituents.size(); i_const++) {
+                  final_bigjet_bigcone = join(final_bigjet_bigcone, final_bigjet_bigcone_constituents[i_const]);
+                }
+
+                if (final_bigjet_bigcone_constituents.size() > 2) {
+
+                // ClusterSequence clustSeq_subjet(final_bigjet_bigcone.constituents(), *jetDef);
+                // ClusterSequence clustSeq_subjet(bigjet_2.constituents(), *jetDef);
+                // vector<PseudoJet> subjet_axes3_bigcone = clustSeq_subjet.exclusive_jets(3);
+                // vector<PseudoJet> subjet_axes2_bigcone = clustSeq_subjet.exclusive_jets(2);
+
+                Nsubjettiness nsub3_manual_bigcone(3, axes_finder->def(), UnnormalizedMeasure(beta));
+                Nsubjettiness nsub2_manual_bigcone(2, axes_finder->def(), UnnormalizedMeasure(beta));
+
+                // nsub3_manual_bigcone.setAxes(subjet_axes3_bigcone);
+                // nsub2_manual_bigcone.setAxes(subjet_axes2_bigcone);
+
+                TH1* tau32_ttbar_manual_2groups_bigcone = (TH1*) tau32_ttbar_manual_2groups_bigcone_hists.At(B);
+                TH1* tau32_dijets_manual_2groups_bigcone = (TH1*) tau32_dijets_manual_2groups_bigcone_hists.At(B);
+
+                if (((bigjet_2.m() > 150 && bigjet_2.m() < 200) || (bigjet_2_improved.m() > 150 && bigjet_2_improved.m() < 200)) ){
+                  if ((min_mass_akt > 50 && min_mass_akt < 100) || (min_mass_akt_improved > 50 && min_mass_improved < 100)) {
+                    if (i_sample == 0) tau32_ttbar_manual_2groups_bigcone->Fill((double)nsub3_manual_bigcone.result(final_bigjet_bigcone)/nsub2_manual_bigcone.result(final_bigjet_bigcone));
+                    if (i_sample == 1) tau32_dijets_manual_2groups_bigcone->Fill((double)nsub3_manual_bigcone.result(final_bigjet_bigcone)/nsub2_manual_bigcone.result(final_bigjet_bigcone));
+                    // if (i_sample == 0) tau32_ttbar_manual_2groups_bigcone->Fill((double)nsub3_manual_bigcone.result(bigjet_2)/nsub2_manual_bigcone.result(bigjet_2));
+                    // if (i_sample == 1) tau32_dijets_manual_2groups_bigcone->Fill((double)nsub3_manual_bigcone.result(bigjet_2)/nsub2_manual_bigcone.result(bigjet_2));
+                  }
+                }
+              }
 
               // }
               // final_manual_axes = min_manual_axes;
@@ -1220,7 +1759,7 @@ int main(int argc, char* argv[]){
               // }
               // njettiness_2++;
               // }
-            // }
+            }
             }
 
             // TH1F* volatility_ttbar_manual = (TH1F*) volatility_ttbar_manual_hists.At(B);
@@ -1229,162 +1768,16 @@ int main(int argc, char* argv[]){
             // double stdev = volatility_event->GetRMS();
             // double mean = volatility_event->GetMean();
 
-            // if (mean > 160 && mean < 240) { 
+            // if (mean > 150 && mean < 200) { 
             //   if (i_sample == 0) volatility_ttbar_manual->Fill(stdev/mean);
             //   if (i_sample == 1) volatility_dijets_manual->Fill(stdev/mean);
             // }
 
             // delete volatility_event;
-          // // ALL OF THIS STUFF IS SIMPLY FOR DISPLAY
-          // if (abs(beta - 1) < epsilon && will_display) {
-          //   Double_t ghost_perp = 0.001;
-          //   Double_t n_ghosts = 50;
-          //   for (int i_ghosts = 0; i_ghosts < n_ghosts; i_ghosts++) {
-          //     for (int j_ghosts = 0; j_ghosts < n_ghosts; j_ghosts++) {
-          //       Double_t ghost_eta = -5 + (double)(10/n_ghosts)*i_ghosts;
-          //       Double_t ghost_phi = (double)(2*TMath::Pi()/n_ghosts)*j_ghosts;
-          //       PseudoJet ghost(ghost_perp*TMath::Cos(ghost_phi),ghost_perp*TMath::Sin(ghost_phi),
-          //         ghost_perp*TMath::SinH(ghost_eta),ghost_perp*TMath::CosH(ghost_eta));
-          //       jet_constituents.push_back(ghost);
-          //       // final_jets_2_improved_constituents.push_back(ghost);
-          //     }
-          //   } 
 
-          //   //first method
-          //   NjettinessPlugin njet_plugin_min_manual(6, axes_finder, measure_function);
-          //   JetDefinition njet_def_min_manual(&njet_plugin_min_manual);
-          //   njet_plugin_min_manual.setAxes(final_manual_axes);
-          //   final_manual_axes.resize(0);
-          //   ClusterSequence njet_cluster_min_manual(jet_constituents, njet_def_min_manual);
-          //   const NjettinessExtras *extras_min_manual = njettiness_extras(njet_cluster_min_manual);
-          //   vector<PseudoJet> final_manual_jets = extras_min_manual->jets();
-          //   final_manual_axes = extras_min_manual->axes();
+          // ALL OF THIS STUFF IS SIMPLY FOR DISPLAY
 
-          //   //second method
-          //   NjettinessPlugin njet_plugin_min_manual_2(6, axes_finder, measure_function);
-          //   JetDefinition njet_def_min_manual_2(&njet_plugin_min_manual_2);
-          //   njet_plugin_min_manual_2.setAxes(final_manual_axes_2);
-          //   final_manual_axes_2.resize(0);
-          //   ClusterSequence njet_cluster_min_manual_2(jet_constituents, njet_def_min_manual_2);
-          //   const NjettinessExtras *extras_min_manual_2 = njettiness_extras(njet_cluster_min_manual_2);
-          //   vector<PseudoJet> final_manual_jets_2 = extras_min_manual_2->jets();
-          //   final_manual_axes_2 = extras_min_manual_2->axes();
 
-          //   ClusterSequence clustSeq_akt(jet_constituents, *jetDef_akt);
-          //   vector<PseudoJet> inclusiveJets_akt_disp = clustSeq_akt.inclusive_jets(0.0);
-          //   vector<PseudoJet> sortedJets_akt_disp = sorted_by_pt(inclusiveJets_akt_disp);
-          //   vector<PseudoJet> hardestJets_akt_disp = jet_selector(sortedJets_akt_disp);
-
-          //   // //third method
-          //   // NjettinessPlugin njet_plugin_min_manual(6, axes_finder, measure_function);
-          //   // JetDefinition njet_def_min_manual(&njet_plugin_min_manual);
-          //   // njet_plugin_min_manual.setAxes(final_manual_axes);
-          //   // final_manual_axes.resize(0);
-          //   // ClusterSequence njet_cluster_min_manual(jet_constituents, njet_def_min_manual);
-          //   // const NjettinessExtras *extras_min_manual = njettiness_extras(njet_cluster_min_manual);
-          //   // vector<PseudoJet> final_manual_jets = extras_min_manual->jets();
-          //   // final_manual_axes = extras_min_manual->axes();
-
-          //   // //fourth method
-          //   // NjettinessPlugin njet_plugin_min_manual(6, axes_finder, measure_function);
-          //   // JetDefinition njet_def_min_manual(&njet_plugin_min_manual);
-          //   // njet_plugin_min_manual.setAxes(final_manual_axes);
-          //   // final_manual_axes.resize(0);
-          //   // ClusterSequence njet_cluster_min_manual(jet_constituents, njet_def_min_manual);
-          //   // const NjettinessExtras *extras_min_manual = njettiness_extras(njet_cluster_min_manual);
-          //   // vector<PseudoJet> final_manual_jets = extras_min_manual->jets();
-          //   // final_manual_axes = extras_min_manual->axes();
-
-          //   for (int a = 0; a < final_manual_axes.size(); a++) {
-          //     axes_manual_display->Fill(final_manual_axes[a].eta(), final_manual_axes[a].phi());
-          //   }
-
-          //   for (int a = 0; a < final_manual_axes_2.size(); a++) {
-          //     axes_manual_display_2->Fill(final_manual_axes_2[a].eta(), final_manual_axes_2[a].phi());
-          //   }
-
-          //   for (int i = 0; i < final_manual_jets.size(); i++) {
-          //     vector<PseudoJet> constituents = final_manual_jets[i].constituents();
-          //     for (int i_const = 0; i_const < constituents.size(); i_const++) {
-          //       subjet_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-          //     }
-          //   }
-
-          //   for (int i = 0; i < final_manual_jets_2.size(); i++) {
-          //     vector<PseudoJet> constituents = final_manual_jets_2[i].constituents();
-          //     for (int i_const = 0; i_const < constituents.size(); i_const++) {
-          //       subjet_display_2->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-          //     }
-          //   }
-
-          //   for (int i = 0; i < hardestJets_akt_disp.size(); i++) {
-          //     vector<PseudoJet> constituents = hardestJets_akt_disp[i].constituents();
-          //     for (int i_const = 0; i_const < constituents.size(); i_const++) {
-          //       subjet_display_3->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-          //     }
-          //   }
-
-          //   vector<PseudoJet> constituents = final_jets_2_improved_constituents;
-          //   for (int i_const = 0; i_const < constituents.size(); i_const++) {
-          //     subjet_display_4->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-          //   }
-
-          // }
-
-            vector <PseudoJet> inclusiveJets_std, sortedJets_std, hardestJets_std;
-
-            double Rparam_std = 1.0;
-            Strategy strategy_std = Best;
-            RecombinationScheme recombScheme_std = E_scheme;
-          // JetDefinition::Recombiner *recombScheme_std = new WinnerTakeAllRecombiner();
-            JetDefinition *jetDef_std = new JetDefinition(antikt_algorithm, Rparam_std, recombScheme_std, strategy_std);
-            ClusterSequence clustSeq_std(input_particles, *jetDef_std);
-            inclusiveJets_std = clustSeq_std.inclusive_jets(200.0);
-            sortedJets_std = sorted_by_pt(inclusiveJets_std);
-            Selector jet_selector = SelectorNHardest(2);
-            hardestJets_std = jet_selector(sortedJets_std);
-
-            for (int i = 0; i < hardestJets_std.size(); i++) {
-
-              ClusterSequence clustSeq_subjet(hardestJets_std[i].constituents(), *jetDef);
-            // vector<PseudoJet> subjet_axes3_start = clustSeq_subjet.exclusive_jets(4);
-            // vector<PseudoJet> subjet_axes2_start = clustSeq_subjet.exclusive_jets(3);
-            // vector<PseudoJet> subjet_axes3 = findMinAxes(hardestJets_std[i].constituents(), subjet_axes3_start, 3, beta, Rparam);
-            // vector<PseudoJet> subjet_axes2 = findMinAxes(hardestJets_std[i].constituents(), subjet_axes2_start, 2, beta, Rparam);
-              vector<PseudoJet> subjet_axes3 = clustSeq_subjet.exclusive_jets(3);
-              vector<PseudoJet> subjet_axes2 = clustSeq_subjet.exclusive_jets(2);
-
-              Nsubjettiness nsub3_manual(3, axes_finder, UnnormalizedMeasure(beta));
-              Nsubjettiness nsub2_manual(2, axes_finder, UnnormalizedMeasure(beta));
-
-              nsub3_manual.setAxes(subjet_axes3);
-              nsub2_manual.setAxes(subjet_axes2);
-
-              if (i_sample == 0) {
-                total_ttbar_jets++;
-                mass_ttbar_antikt->Fill(hardestJets_std[i].m());
-              // tau3_ttbar_manual_antikt->Fill(nsub3_manual.result(hardestJets_std[i]));
-              }
-              if (i_sample == 1) {
-                total_dijets_jets++;
-                mass_dijets_antikt->Fill(hardestJets_std[i].m());
-              // tau3_dijets_manual_antikt->Fill(nsub3_manual.result(hardestJets_std[i]));
-              }
-
-              NsubjettinessRatio nsub_32_wta(3, 2, OnePass_WTA_KT_Axes(), UnnormalizedMeasure(1.0));
-              if (hardestJets_std[i].m() > 160 && hardestJets_std[i].m() < 240) {
-                if (i_sample == 0) {
-                  TH1* tau32_ttbar_antikt = (TH1*)tau32_ttbar_antikt_hists.At(B);
-                  tau32_ttbar_antikt->Fill(nsub3_manual.result(hardestJets_std[i])/nsub2_manual.result(hardestJets_std[i]));
-                  tau32_ttbar_antikt_wta->Fill(nsub_32_wta.result(hardestJets_std[i]));
-                }
-                if (i_sample == 1) {
-                  TH1* tau32_dijets_antikt = (TH1*)tau32_dijets_antikt_hists.At(B);
-                  tau32_dijets_antikt->Fill(nsub3_manual.result(hardestJets_std[i])/nsub2_manual.result(hardestJets_std[i]));
-                  tau32_dijets_antikt_wta->Fill(nsub_32_wta.result(hardestJets_std[i]));
-                }
-              }
-            }
           }
 
           event_display->SetStats(0);
@@ -1457,16 +1850,16 @@ int main(int argc, char* argv[]){
         // subjet6_display->Draw("SAMES");
         // subjet7_display->Draw("SAMES");
 
-          if (subjet_display->Integral() != 0) display->Write();
-
           ostringstream ss;
           ss << i_event;
           TString title;
           if (i_sample == 0) title = "ttbar_display" + (TString)ss_pt.str() + "_6jets_test_pt" + (TString)ss_pt.str() + ".eps";
           if (i_sample == 1) title = "dijets_display" + (TString)ss_pt.str() + "_6jets_test_pt" + (TString)ss_pt.str() + ".eps";
 
-        //   // display->Print(title, "eps");
-        // }
+          if (subjet_display->Integral() != 0 && subjet_display_2->Integral() != 0) {
+            display->Write();
+            // display->Print(title, "eps");
+          }
 
           delete display;
           delete event_display;
@@ -1529,8 +1922,8 @@ int main(int argc, char* argv[]){
       TCanvas *ROC_compare = new TCanvas("ROC_compare", "ROC Curve Comparison", 600, 600);
       ROC_compare->cd();
       ROC_compare->SetLogy();
-      TMultiGraph *ROC_multigraph = new TMultiGraph("ROC_multigraph", "ROC Comparison for #tau_{3}/#tau_{2} (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ", 160 < m < 240, #beta = " + (TString)ss.str() + ")");
-      TLegend *leg_ROC = new TLegend(0.14, 0.6, 0.4, 0.88);
+      TMultiGraph *ROC_multigraph = new TMultiGraph("ROC_multigraph", "ROC Comparison for #tau_{3}/#tau_{2} (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ", 150 < m < 200, #beta = " + (TString)ss.str() + ")");
+      TLegend *leg_ROC = new TLegend(0.17, 0.6, 0.4, 0.88);
       leg_ROC->SetLineColor(0);
       leg_ROC->SetFillColor(0);
 
@@ -1658,7 +2051,7 @@ int main(int argc, char* argv[]){
       ROC_tau32_manual->SetMarkerSize(2);
       ROC_multigraph->Add(ROC_tau32_manual);
     // leg_ROC->AddEntry(ROC_tau32_manual, "Manual 6 Axes (beta = " + (TString)ss.str() + ")", "L");
-      leg_ROC->AddEntry(ROC_tau32_manual, "6-jet imp", "L");
+      // leg_ROC->AddEntry(ROC_tau32_manual, "6-jet imp", "L");
     // ROC_tau32_manual->Write();
 
 
@@ -1749,8 +2142,8 @@ int main(int argc, char* argv[]){
       int n_size_manual_2groups_bigcone = tau32_ttbar_manual_2groups_bigcone->GetSize() - 2;
       double integral_dijets_manual_2groups_bigcone[n_size_manual_2groups_bigcone], integral_ttbar_manual_2groups_bigcone[n_size_manual_2groups_bigcone];
       for (int i = 0; i < n_size_manual_2groups_bigcone; i++) {
-        integral_ttbar_manual_2groups_bigcone[i] = tau32_ttbar_manual_2groups_bigcone->Integral(0,i)/total_ttbar_jets;
-        integral_dijets_manual_2groups_bigcone[i] = tau32_dijets_manual_2groups_bigcone->Integral(0,i)/total_dijets_jets;
+        integral_ttbar_manual_2groups_bigcone[i] = tau32_ttbar_manual_2groups_bigcone->Integral(0,i)/mass_ttbar_manual_2groups->Integral(0,mass_ttbar_manual_2groups->GetNbinsX());
+        integral_dijets_manual_2groups_bigcone[i] = tau32_dijets_manual_2groups_bigcone->Integral(0,i)/mass_dijets_manual_2groups->Integral(0, mass_dijets_manual_2groups->GetNbinsX());
       }
       TGraph* ROC_tau32_manual_2groups_bigcone = new TGraph(n_size_manual_2groups_bigcone, integral_ttbar_manual_2groups_bigcone, integral_dijets_manual_2groups_bigcone);
       ROC_tau32_manual_2groups_bigcone->GetXaxis()->SetLimits(0, 1);
@@ -1801,7 +2194,7 @@ int main(int argc, char* argv[]){
       ROC_multigraph->GetYaxis()->SetTitleOffset(0.85);
       leg_ROC->Draw();
       ROC_compare->Write();
-      ROC_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ROC_compare_pt" + (TString)ss_pt.str() + "_beta" + (TString)ss.str() + ".eps", "eps");
+      ROC_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ROC_compare_pt" + (TString)ss_pt.str() + "_beta" + (TString)ss.str() + ".eps", "eps");
 
     }
 
@@ -1810,7 +2203,7 @@ int main(int argc, char* argv[]){
     double mass_ttbar_antikt_scale = 1/mass_ttbar_antikt->Integral(0, mass_ttbar_antikt->GetNbinsX() + 1);
     mass_ttbar_antikt->Scale(mass_ttbar_antikt_scale);
     mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
+    mass_ttbar_antikt->SetTitle("Top Mass");
     mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_ttbar_antikt->Draw();
@@ -1823,14 +2216,12 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_ttbar = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_ttbar->SetLineColor(0);
     leg_mass_ttbar->SetFillColor(0);
-    leg_mass_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_ttbar->AddEntry(mass_ttbar_antikt_6jets, "ak_{T} (6-jet)", "L");
 
     double max_val_ttbar_akt = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_6jets->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_6jets->GetMaximum();
     double max_val_ttbar = max_val_ttbar_akt;
 
-    top_efficiency_mass[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass[1][i_pt] = mass_ttbar_antikt_6jets->Integral((double)160/500*mass_ttbar_antikt_6jets->GetNbinsX(), (double)240/500*mass_ttbar_antikt_6jets->GetNbinsX());
+    top_efficiency_mass[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_mass[3][i_pt] = mass_ttbar_antikt_6jets->Integral((double)150/500*mass_ttbar_antikt_6jets->GetNbinsX(), (double)200/500*mass_ttbar_antikt_6jets->GetNbinsX());
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -1849,7 +2240,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual->SetStats(0);
       mass_dijets_manual->SetStats(0);
 
-      top_efficiency_mass[B+2][i_pt] = mass_ttbar_manual->Integral((double)160/500*mass_ttbar_manual->GetNbinsX(), (double)240/500*mass_ttbar_manual->GetNbinsX());
+      top_efficiency_mass[B][i_pt] = mass_ttbar_manual->Integral((double)150/500*mass_ttbar_manual->GetNbinsX(), (double)200/500*mass_ttbar_manual->GetNbinsX());
 
       mass_ttbar_manual->SetLineColor(colorlist[B]);
     // if (B == 0) mass_ttbar_manual->SetLineColor(kRed);
@@ -1869,25 +2260,26 @@ int main(int argc, char* argv[]){
 
     // cout << "manual ttbar mass ratio: " << mass_ttbar_manual->Integral(75, 110) << "(beta = " << beta << ")" << endl;
     }
+    leg_mass_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_ttbar->AddEntry(mass_ttbar_antikt_6jets, "ak_{T} (Res)", "L");
 
     mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar);
     leg_mass_ttbar->Draw();
     mass_ttbar_compare->Write();
-    mass_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_ttbar_compare_2jets = new TCanvas("mass_ttbar_compare_2jets", "Mass Comparison", 600, 600);
     mass_ttbar_compare_2jets->cd();
     mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
+    mass_ttbar_antikt->SetTitle("Top Mass");
     mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_ttbar_antikt->Draw();
 
-    TLegend *leg_mass_ttbar_2jets = new TLegend(0.6, 0.6, 0.88, 0.88);
+    TLegend *leg_mass_ttbar_2jets = new TLegend(0.55, 0.5, 0.86, 0.86);
     leg_mass_ttbar_2jets->SetLineColor(0);
     leg_mass_ttbar_2jets->SetFillColor(0);
-    leg_mass_ttbar_2jets->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
 
     double max_val_ttbar_2jets = max_val_ttbar_akt;
 
@@ -1926,7 +2318,8 @@ int main(int argc, char* argv[]){
     mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_2jets);
     leg_mass_ttbar_2jets->Draw();
     mass_ttbar_compare_2jets->Write();
-    mass_ttbar_compare_2jets->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_2jets_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_ttbar_compare_2jets->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_2jets_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    leg_mass_ttbar_2jets->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
 
 
     TCanvas *mass_dijets_compare = new TCanvas("mass_dijets_compare", "Mass Comparison", 600, 600);
@@ -1934,7 +2327,7 @@ int main(int argc, char* argv[]){
     double mass_dijets_antikt_scale = 1/mass_dijets_antikt->Integral(0, mass_dijets_antikt->GetNbinsX() + 1);
     mass_dijets_antikt->Scale(mass_dijets_antikt_scale);
     mass_dijets_antikt->SetLineColor(kBlack);
-    mass_dijets_antikt->SetTitle("Mass of QCD jets");
+    mass_dijets_antikt->SetTitle("QCD Mass");
     mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_dijets_antikt->Draw();
@@ -1947,15 +2340,13 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_dijets = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_dijets->SetLineColor(0);
     leg_mass_dijets->SetFillColor(0);
-    leg_mass_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_dijets->AddEntry(mass_dijets_antikt_6jets, "ak_{T} (6-jet)", "L");
   // double max_val_dijets = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_6jets->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_6jets->GetMaximum();
 
     double max_val_dijets_akt = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_6jets->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_6jets->GetMaximum();
     double max_val_dijets = max_val_dijets_akt;
 
-    qcd_efficiency_mass[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass[1][i_pt] = mass_dijets_antikt_6jets->Integral((double)160/500*mass_dijets_antikt_6jets->GetNbinsX(), (double)240/500*mass_dijets_antikt_6jets->GetNbinsX());
+    qcd_efficiency_mass[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_mass[3][i_pt] = mass_dijets_antikt_6jets->Integral((double)150/500*mass_dijets_antikt_6jets->GetNbinsX(), (double)200/500*mass_dijets_antikt_6jets->GetNbinsX());
 
 
     for (int B = 0; B < betalist.size(); B++) {
@@ -1972,7 +2363,7 @@ int main(int argc, char* argv[]){
 
       mass_dijets_manual->SetStats(0);
 
-      qcd_efficiency_mass[B+2][i_pt] = mass_dijets_manual->Integral((double)160/500*mass_dijets_manual->GetNbinsX(), (double)240/500*mass_dijets_manual->GetNbinsX());
+      qcd_efficiency_mass[B][i_pt] = mass_dijets_manual->Integral((double)150/500*mass_dijets_manual->GetNbinsX(), (double)200/500*mass_dijets_manual->GetNbinsX());
 
       mass_dijets_manual->SetLineColor(colorlist[B]);
     // if (B == 0) mass_dijets_manual->SetLineColor(kRed);
@@ -1992,16 +2383,18 @@ int main(int argc, char* argv[]){
 
     // cout << "manual QCD mass ratio: " << mass_dijets_manual->Integral(75, 110) << "(beta = " << beta << ")" << endl;
     }
+    leg_mass_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_dijets->AddEntry(mass_dijets_antikt_6jets, "ak_{T} (Res)", "L");
 
     mass_dijets_antikt->SetMaximum(1.2*max_val_dijets);
     leg_mass_dijets->Draw();
     mass_dijets_compare->Write();
-    mass_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_dijets_compare_2jets = new TCanvas("mass_dijets_compare_2jets", "Mass Comparison", 600, 600);
     mass_dijets_compare_2jets->cd();
-    mass_dijets_antikt->SetTitle("Mass of Top Jets");
+    mass_dijets_antikt->SetTitle("Top Mass");
     mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_dijets_antikt->Draw();
@@ -2009,7 +2402,7 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_dijets_2jets = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_dijets_2jets->SetLineColor(0);
     leg_mass_dijets_2jets->SetFillColor(0);
-    leg_mass_dijets_2jets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
+    leg_mass_dijets_2jets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
 
     double max_val_dijets_2jets = max_val_dijets_akt;
 
@@ -2048,24 +2441,28 @@ int main(int argc, char* argv[]){
     mass_dijets_antikt->SetMaximum(1.2*max_val_dijets_2jets);
     leg_mass_dijets_2jets->Draw();
     mass_dijets_compare_2jets->Write();
-    mass_dijets_compare_2jets->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_2jets_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_dijets_compare_2jets->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_2jets_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *area_ttbar_compare = new TCanvas("area_ttbar_compare", "area Comparison", 600, 600);
     area_ttbar_compare->cd();
     double area_ttbar_antikt_scale = 1/area_ttbar_antikt->Integral(0, area_ttbar_antikt->GetNbinsX() + 1);
     area_ttbar_antikt->Scale(area_ttbar_antikt_scale);
     area_ttbar_antikt->SetStats(0);
-    area_ttbar_antikt->SetLineColor(8);
-    area_ttbar_antikt->SetTitle("Area of 6 Top Jets");
+    area_ttbar_antikt->SetLineColor(kBlack);
+    area_ttbar_antikt->SetLineStyle(7);
+    area_ttbar_antikt->SetTitle("Top Area (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
     area_ttbar_antikt->GetXaxis()->SetTitle("Area");
     area_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     area_ttbar_antikt->Draw();
 
-    TLegend *leg_area_ttbar = new TLegend(0.14, 0.65, 0.35, 0.88);
+    // TLegend *leg_area_ttbar = new TLegend(0.17, 0.5, 0.45, 0.86);
+    TLegend *leg_area_ttbar = new TLegend(0.6, 0.6, 0.86, 0.86);
     leg_area_ttbar->SetFillColor(0);
     leg_area_ttbar->SetLineColor(0);
-    leg_area_ttbar->AddEntry(area_ttbar_antikt, "ak_{T}", "L");
+    leg_area_ttbar->SetFillStyle(0);
+    leg_area_ttbar->SetTextSize(0.09);
     double max_val_ttbar_area = area_ttbar_antikt->GetMaximum();
+    TH1* final_drawn_histogram;
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -2084,7 +2481,7 @@ int main(int argc, char* argv[]){
 
       area_ttbar_manual->SetStats(0);
       area_dijets_manual->SetStats(0);
-    // area_ttbar_manual->SetTitle("Area of 6 Top Jets");
+    // area_ttbar_manual->SetTitle("Top Area");
     // area_ttbar_manual->GetXaxis()->SetTitle("Area");
     // area_ttbar_manual->GetYaxis()->SetTitle("Relative Occurrence");
 
@@ -2094,8 +2491,8 @@ int main(int argc, char* argv[]){
     // if (B == 2) area_ttbar_manual->SetLineColor(kRed);
     // if (B == 3) area_ttbar_manual->SetLineColor(kBlue);
 
-    // if (B == 0) area_ttbar_manual->Draw();
-      area_ttbar_manual->Draw("SAMES");
+      if (B == 0) final_drawn_histogram = area_ttbar_manual;
+      if (B == 1) area_ttbar_manual->Draw("SAMES");
       leg_area_ttbar->AddEntry(area_ttbar_manual, "#beta = " + (TString)ss.str());
       area_ttbar_manual->Write();
 
@@ -2105,6 +2502,8 @@ int main(int argc, char* argv[]){
       // area_ttbar_compare->Update();
       }
     }
+    final_drawn_histogram->Draw("SAMES");
+    leg_area_ttbar->AddEntry(area_ttbar_antikt, "ak_{T}", "L");
 
     TLine *true_area = new TLine();
     true_area->SetX1(TMath::Pi()*Rparam*Rparam);
@@ -2112,30 +2511,44 @@ int main(int argc, char* argv[]){
     true_area->SetY1(0);
     true_area->SetY2(1.2*max_val_ttbar_area);
     true_area->SetLineColor(kRed);
-    true_area->SetLineWidth(3);
+    true_area->SetLineWidth(4);
     true_area->SetLineStyle(7);
     true_area->Draw();
 
+    TPaveText *radius_text_2 = new TPaveText(0.6, 0.5, 0.86, 0.6, "brNDC");
+    // TPaveText* radius_text_2 = new TPaveText(0.17, 0.4, 0.4, 0.5, "brNDC");
+    radius_text_2->SetTextFont(132);
+    radius_text_2->SetTextSize(0.08);
+    radius_text_2->SetFillColor(kWhite);
+    radius_text_2->SetLineColor(kWhite);
+    radius_text_2->SetBorderSize(0);
+    radius_text_2->SetFillStyle(0);
+    radius_text_2->AddText("R = 0.5");
+  
     area_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_area);
     leg_area_ttbar->Draw();
+    radius_text_2->Draw();
     area_ttbar_compare->Write();
-    area_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_area_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    area_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_area_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *area_dijets_compare = new TCanvas("area_dijets_compare", "area Comparison", 600, 600);
     area_dijets_compare->cd();
     double area_dijets_antikt_scale = 1/area_dijets_antikt->Integral(0, area_dijets_antikt->GetNbinsX() + 1);
     area_dijets_antikt->Scale(area_dijets_antikt_scale);
     area_dijets_antikt->SetStats(0);
-    area_dijets_antikt->SetLineColor(8);
-    area_dijets_antikt->SetTitle("Area of 6 QCD Jets");
+    area_dijets_antikt->SetLineColor(kBlack);
+    area_dijets_antikt->SetLineStyle(7);
+    area_dijets_antikt->SetTitle("QCD Area (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
     area_dijets_antikt->GetXaxis()->SetTitle("Area");
     area_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     area_dijets_antikt->Draw();
 
-    TLegend *leg_area_dijets = new TLegend(0.14, 0.65, 0.35, 0.88);
+    // TLegend *leg_area_dijets = new TLegend(0.17, 0.5, 0.45, 0.86);
+    TLegend *leg_area_dijets = new TLegend(0.6, 0.6, 0.86, 0.86);
     leg_area_dijets->SetLineColor(0);
     leg_area_dijets->SetFillColor(0);
-    leg_area_dijets->AddEntry(area_dijets_antikt, "ak_{T}", "L");
+    leg_area_dijets->SetFillStyle(0);
+    leg_area_dijets->SetTextSize(0.09);
     double max_val_dijets_area = area_dijets_antikt->GetMaximum();
 
     for (int B = 0; B < betalist.size(); B++) {
@@ -2151,7 +2564,7 @@ int main(int argc, char* argv[]){
       area_dijets_manual->Scale(area_dijets_manual_scale);
 
       area_dijets_manual->SetStats(0);
-    // area_dijets_manual->SetTitle("Area of 6 QCD Jets");
+    // area_dijets_manual->SetTitle("QCD Area");
     // area_dijets_manual->GetXaxis()->SetTitle("Area");
     // area_dijets_manual->GetYaxis()->SetTitle("Relative Occurrence");
 
@@ -2161,8 +2574,8 @@ int main(int argc, char* argv[]){
     // if (B == 2) area_dijets_manual->SetLineColor(kRed);
     // if (B == 3) area_dijets_manual->SetLineColor(kBlue);
 
-    // if (B == 0) area_dijets_manual->Draw();
-      area_dijets_manual->Draw("SAMES");
+      if (B == 0) final_drawn_histogram = area_dijets_manual;
+      if (B == 1) area_dijets_manual->Draw("SAMES");
       leg_area_dijets->AddEntry(area_dijets_manual, "#beta = " + (TString)ss.str());
       area_dijets_manual->Write();
 
@@ -2172,35 +2585,43 @@ int main(int argc, char* argv[]){
       // area_dijets_compare->Update();
       }
     }
+    final_drawn_histogram->Draw("SAMES");
+    leg_area_dijets->AddEntry(area_dijets_antikt, "ak_{T}", "L");
 
     true_area->SetY2(1.2*max_val_dijets_area);
     true_area->Draw();
 
     area_dijets_antikt->SetMaximum(1.2*max_val_dijets_area);
     leg_area_dijets->Draw();
+    radius_text_2->Draw();
     area_dijets_compare->Write();
-    area_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_area_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    area_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_area_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *rawmass_ttbar_compare = new TCanvas("rawmass_ttbar_compare", "rawmass Comparison", 600, 600);
     rawmass_ttbar_compare->cd();
-    mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
-    mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
-    mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
-    mass_ttbar_antikt->Draw();
-    mass_ttbar_antikt_6jets->Draw("SAMES");
+    mass_ttbar_antikt_6jets->SetLineColor(kBlack);
+    mass_ttbar_antikt_6jets->SetLineStyle(7);
+    mass_ttbar_antikt_6jets->SetTitle("Top Mass (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
+    mass_ttbar_antikt_6jets->GetXaxis()->SetTitle("m (GeV)");
+    mass_ttbar_antikt_6jets->GetYaxis()->SetTitle("Relative Occurrence");
+    mass_ttbar_antikt_6jets->GetXaxis()->SetNdivisions(505);
+    // mass_ttbar_antikt->Draw();
+    mass_ttbar_antikt_6jets->Draw();
 
-    TLegend *leg_rawmass_ttbar = new TLegend(0.6, 0.6, 0.88, 0.88);
+    TLegend *leg_rawmass_ttbar = new TLegend(0.6, 0.6, 0.86, 0.86);
     leg_rawmass_ttbar->SetLineColor(0);
     leg_rawmass_ttbar->SetFillColor(0);
-    leg_rawmass_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
-    leg_rawmass_ttbar->AddEntry(mass_ttbar_antikt_6jets, "ak_{T} (6-jet)", "L");
+    leg_rawmass_ttbar->SetFillStyle(0);
+    leg_rawmass_ttbar->SetTextSize(0.09);
+    // leg_rawmass_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
   // double max_val_ttbar_raw = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_6jets->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_6jets->GetMaximum();
-    double max_val_ttbar_raw = max_val_ttbar_akt;
+    double max_val_ttbar_raw = mass_ttbar_antikt_6jets->GetMaximum();
+    double rawmass_ttbar_manual_scale;
+    double rawmass_dijets_manual_scale;
 
-    top_efficiency_rawmass[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_rawmass[1][i_pt] = mass_ttbar_antikt_6jets->Integral((double)160/500*mass_ttbar_antikt_6jets->GetNbinsX(), (double)240/500*mass_ttbar_antikt_6jets->GetNbinsX());
+    top_efficiency_rawmass[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_rawmass[3][i_pt] = mass_ttbar_antikt_6jets->Integral((double)150/500*mass_ttbar_antikt_6jets->GetNbinsX(), (double)200/500*mass_ttbar_antikt_6jets->GetNbinsX());
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -2211,8 +2632,8 @@ int main(int argc, char* argv[]){
 
       TH1* rawmass_ttbar_manual = (TH1*)rawmass_ttbar_manual_hists.At(B);
       TH1* rawmass_dijets_manual = (TH1*)rawmass_dijets_manual_hists.At(B);
-      double rawmass_ttbar_manual_scale = 1/rawmass_ttbar_manual->Integral(0, rawmass_ttbar_manual->GetNbinsX() + 1);
-      double rawmass_dijets_manual_scale = 1/rawmass_dijets_manual->Integral(0, rawmass_dijets_manual->GetNbinsX() + 1);
+      rawmass_ttbar_manual_scale = 1/rawmass_ttbar_manual->Integral(0, rawmass_ttbar_manual->GetNbinsX() + 1);
+      rawmass_dijets_manual_scale = 1/rawmass_dijets_manual->Integral(0, rawmass_dijets_manual->GetNbinsX() + 1);
       rawmass_ttbar_manual->Scale(rawmass_ttbar_manual_scale);
       rawmass_dijets_manual->Scale(rawmass_dijets_manual_scale);
 
@@ -2223,14 +2644,10 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual->Scale(mass_ttbar_manual_scale);
       mass_dijets_manual->Scale(mass_dijets_manual_scale);
 
-      top_efficiency_ratio[B][i_pt] = (double)(mass_ttbar_manual->Integral((double)160/500*mass_ttbar_manual->GetNbinsX(), (double)240/500*mass_ttbar_manual->GetNbinsX()))/(rawmass_ttbar_manual->Integral((double)160/500*rawmass_ttbar_manual->GetNbinsX(), (double)240/500*rawmass_ttbar_manual->GetNbinsX()));
-
-      qcd_efficiency_ratio[B][i_pt] = (double)(mass_dijets_manual->Integral((double)160/500*mass_dijets_manual->GetNbinsX(), (double)240/500*mass_dijets_manual->GetNbinsX()))/(rawmass_dijets_manual->Integral((double)160/500*rawmass_dijets_manual->GetNbinsX(), (double)240/500*rawmass_dijets_manual->GetNbinsX()));
-
       rawmass_ttbar_manual->SetStats(0);
       rawmass_dijets_manual->SetStats(0);
 
-      top_efficiency_rawmass[B+2][i_pt] = rawmass_ttbar_manual->Integral((double)160/500*rawmass_ttbar_manual->GetNbinsX(), (double)240/500*rawmass_ttbar_manual->GetNbinsX());
+      top_efficiency_rawmass[B][i_pt] = rawmass_ttbar_manual->Integral((double)150/500*rawmass_ttbar_manual->GetNbinsX(), (double)200/500*rawmass_ttbar_manual->GetNbinsX());
 
       rawmass_ttbar_manual->SetLineColor(colorlist[B]);
     // if (B == 0) rawmass_ttbar_manual->SetLineColor(kRed);
@@ -2238,7 +2655,8 @@ int main(int argc, char* argv[]){
     // if (B == 2) rawmass_ttbar_manual->SetLineColor(kRed);
     // if (B == 3) rawmass_ttbar_manual->SetLineColor(kBlue);
 
-      rawmass_ttbar_manual->Draw("SAMES");
+      if (B == 0) final_drawn_histogram = rawmass_ttbar_manual;
+      if (B == 1) rawmass_ttbar_manual->Draw("SAMES");
       leg_rawmass_ttbar->AddEntry(rawmass_ttbar_manual, "#beta = " + (TString)ss.str());
       rawmass_ttbar_manual->Write();
 
@@ -2248,31 +2666,50 @@ int main(int argc, char* argv[]){
       // rawmass_ttbar_compare->Update();
       }
     }
+    final_drawn_histogram->Draw("SAMES");
+    leg_rawmass_ttbar->AddEntry(mass_ttbar_antikt_6jets, "ak_{T}", "L");
 
-    mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_raw);
+    TPaveText *radius_text_raw = new TPaveText(0.6, 0.5, 0.86, 0.6, "brNDC");
+    radius_text_raw->SetTextFont(132);
+    radius_text_raw->SetTextSize(0.08);
+    radius_text_raw->SetFillColor(kWhite);
+    radius_text_raw->SetLineColor(kWhite);
+    radius_text_raw->SetBorderSize(0);
+    radius_text_raw->SetFillStyle(0);
+    radius_text_raw->AddText("R = 0.5");
+
+    mass_ttbar_antikt_6jets->SetMaximum(1.2*max_val_ttbar_raw);
     leg_rawmass_ttbar->Draw();
+    radius_text_raw->Draw();
     rawmass_ttbar_compare->Write();
-    rawmass_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_rawmass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    rawmass_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_rawmass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *rawmass_dijets_compare = new TCanvas("rawmass_dijets_compare", "rawmass Comparison", 600, 600);
     rawmass_dijets_compare->cd();
-    mass_dijets_antikt->SetLineColor(kBlack);
-    mass_dijets_antikt->SetTitle("Mass of QCD Jets");
-    mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
-    mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
-    mass_dijets_antikt->Draw();
-    mass_dijets_antikt_6jets->Draw("SAMES");
+    mass_dijets_antikt_6jets->SetLineColor(kBlack);
+    mass_dijets_antikt_6jets->SetLineStyle(7);
+    mass_dijets_antikt_6jets->SetTitle("QCD Mass (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
+    mass_dijets_antikt_6jets->GetXaxis()->SetTitle("m (GeV)");
+    mass_dijets_antikt_6jets->GetYaxis()->SetTitle("Relative Occurrence");
+    mass_dijets_antikt_6jets->GetYaxis()->SetTitleOffset(1.2);
+    mass_dijets_antikt_6jets->GetXaxis()->SetNdivisions(505);
+    // mass_dijets_antikt->Draw();
+    mass_dijets_antikt_6jets->Draw();
 
-    TLegend *leg_rawmass_dijets = new TLegend(0.6, 0.6, 0.88, 0.88);
+    TLegend *leg_rawmass_dijets = new TLegend(0.6, 0.6, 0.86, 0.86);
     leg_rawmass_dijets->SetLineColor(0);
     leg_rawmass_dijets->SetFillColor(0);
-    leg_rawmass_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
-    leg_rawmass_dijets->AddEntry(mass_dijets_antikt_6jets, "ak_{T} (6-jet)", "L");
+    leg_rawmass_dijets->SetFillStyle(0);
+    leg_rawmass_dijets->SetTextSize(0.09);
+    // leg_rawmass_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
   // double max_val_dijets_raw = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_6jets->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_6jets->GetMaximum();
-    double max_val_dijets_raw = max_val_dijets_akt;
+    double max_val_dijets_raw = mass_dijets_antikt_6jets->GetMaximum();
 
-    qcd_efficiency_rawmass[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_rawmass[1][i_pt] = mass_dijets_antikt_6jets->Integral((double)160/500*mass_dijets_antikt_6jets->GetNbinsX(), (double)240/500*mass_dijets_antikt_6jets->GetNbinsX());
+    qcd_efficiency_rawmass[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_rawmass[3][i_pt] = mass_dijets_antikt_6jets->Integral((double)150/500*mass_dijets_antikt_6jets->GetNbinsX(), (double)200/500*mass_dijets_antikt_6jets->GetNbinsX());
+
+    top_efficiency_ratio[2][i_pt] = (double)pow(top_efficiency_rawmass[2][i_pt],2.0)/qcd_efficiency_rawmass[2][i_pt];
+    top_efficiency_ratio[3][i_pt] = (double)pow(top_efficiency_rawmass[3][i_pt],2.0)/qcd_efficiency_rawmass[3][i_pt];
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -2288,7 +2725,8 @@ int main(int argc, char* argv[]){
 
       rawmass_dijets_manual->SetStats(0);
 
-      qcd_efficiency_rawmass[B+2][i_pt] = rawmass_dijets_manual->Integral((double)160/500*rawmass_dijets_manual->GetNbinsX(), (double)240/500*rawmass_dijets_manual->GetNbinsX());
+      qcd_efficiency_rawmass[B][i_pt] = rawmass_dijets_manual->Integral((double)150/500*rawmass_dijets_manual->GetNbinsX(), (double)200/500*rawmass_dijets_manual->GetNbinsX());
+      top_efficiency_ratio[B][i_pt] = (double)pow(top_efficiency_rawmass[B][i_pt],2.0)/qcd_efficiency_rawmass[B][i_pt];
 
       rawmass_dijets_manual->SetLineColor(colorlist[B]);
       // if (B == 0) rawmass_dijets_manual->SetLineColor(kRed);
@@ -2296,7 +2734,8 @@ int main(int argc, char* argv[]){
       // if (B == 2) rawmass_dijets_manual->SetLineColor(kRed);
       // if (B == 3) rawmass_dijets_manual->SetLineColor(kBlue);
 
-      rawmass_dijets_manual->Draw("SAMES");
+      if (B == 0) final_drawn_histogram = rawmass_dijets_manual;
+      if (B == 1) rawmass_dijets_manual->Draw("SAMES");
       leg_rawmass_dijets->AddEntry(rawmass_dijets_manual, "#beta = " + (TString)ss.str());
       rawmass_dijets_manual->Write();
 
@@ -2306,37 +2745,169 @@ int main(int argc, char* argv[]){
         // rawmass_dijets_compare->Update();
       }
     }
+    final_drawn_histogram->Draw("SAMES");
+    leg_rawmass_dijets->AddEntry(mass_dijets_antikt_6jets, "ak_{T}", "L");
 
-    mass_dijets_antikt->SetMaximum(1.2*max_val_dijets_raw);
+    mass_dijets_antikt_6jets->SetMaximum(1.2*max_val_dijets_raw);
     leg_rawmass_dijets->Draw();
+    radius_text_raw->Draw();
     rawmass_dijets_compare->Write();
-    rawmass_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_rawmass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    rawmass_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_rawmass_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *rawmass_Wmasscut_ttbar_compare = new TCanvas("rawmass_Wmasscut_ttbar_compare", "rawmass_Wmasscut Comparison", 600, 600);
+    rawmass_Wmasscut_ttbar_compare->cd();
+    mass_ttbar_antikt_6jets_Wmasscut->Scale(mass_ttbar_antikt_6jets_scale);
+    mass_ttbar_antikt_6jets_Wmasscut->SetLineColor(kBlack);
+    mass_ttbar_antikt_6jets_Wmasscut->SetLineStyle(7);
+    mass_ttbar_antikt_6jets_Wmasscut->SetTitle("Top Mass (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
+    mass_ttbar_antikt_6jets_Wmasscut->GetXaxis()->SetTitle("m (GeV)");
+    mass_ttbar_antikt_6jets_Wmasscut->GetYaxis()->SetTitle("Relative Occurrence");
+    // mass_ttbar_antikt->Draw();
+    mass_ttbar_antikt_6jets_Wmasscut->Draw();
+
+    TLegend *leg_rawmass_Wmasscut_ttbar = new TLegend(0.65, 0.65, 0.88, 0.88);
+    leg_rawmass_Wmasscut_ttbar->SetLineColor(0);
+    leg_rawmass_Wmasscut_ttbar->SetFillColor(0);
+    // leg_rawmass_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
+  // double max_val_ttbar_raw = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_6jets_Wmasscut->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_6jets_Wmasscut->GetMaximum();
+    double max_val_ttbar_raw_Wmasscut = mass_ttbar_antikt_6jets_Wmasscut->GetMaximum();
+
+    top_efficiency_rawmass_Wmasscut[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_rawmass_Wmasscut[3][i_pt] = mass_ttbar_antikt_6jets_Wmasscut->Integral((double)150/500*mass_ttbar_antikt_6jets_Wmasscut->GetNbinsX(), (double)200/500*mass_ttbar_antikt_6jets_Wmasscut->GetNbinsX());
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* rawmass_ttbar_manual_Wmasscut = (TH1*)rawmass_ttbar_manual_Wmasscut_hists.At(B);
+      rawmass_ttbar_manual_Wmasscut->Scale(rawmass_ttbar_manual_scale);
+
+      rawmass_ttbar_manual_Wmasscut->SetStats(0);
+
+      top_efficiency_rawmass_Wmasscut[B][i_pt] = rawmass_ttbar_manual_Wmasscut->Integral((double)150/500*rawmass_ttbar_manual_Wmasscut->GetNbinsX(), (double)200/500*rawmass_ttbar_manual_Wmasscut->GetNbinsX());
+
+      rawmass_ttbar_manual_Wmasscut->SetLineColor(colorlist[B]);
+    // if (B == 0) rawmass_ttbar_manual_Wmasscut->SetLineColor(kRed);
+    // if (B == 1) rawmass_ttbar_manual_Wmasscut->SetLineColor(kBlue);
+    // if (B == 2) rawmass_ttbar_manual_Wmasscut->SetLineColor(kRed);
+    // if (B == 3) rawmass_ttbar_manual_Wmasscut->SetLineColor(kBlue);
+
+      rawmass_ttbar_manual_Wmasscut->Draw("SAMES");
+      leg_rawmass_Wmasscut_ttbar->AddEntry(rawmass_ttbar_manual_Wmasscut, "#beta = " + (TString)ss.str());
+      rawmass_ttbar_manual_Wmasscut->Write();
+
+      if (rawmass_ttbar_manual_Wmasscut->GetMaximum() > max_val_ttbar_raw_Wmasscut) {
+        max_val_ttbar_raw = rawmass_ttbar_manual_Wmasscut->GetMaximum();
+      // rawmass_ttbar_manual_Wmasscut->SetMaximum(1.2*max_val_ttbar_raw);
+      // rawmass_Wmasscut_ttbar_compare->Update();
+      }
+    }
+    leg_rawmass_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_6jets_Wmasscut, "ak_{T}", "L");
+
+    mass_ttbar_antikt_6jets_Wmasscut->SetMaximum(1.2*max_val_ttbar_raw_Wmasscut);
+    leg_rawmass_Wmasscut_ttbar->Draw();
+    radius_text_raw->Draw();
+    rawmass_Wmasscut_ttbar_compare->Write();
+    rawmass_Wmasscut_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_rawmass_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+    TCanvas *rawmass_Wmasscut_dijets_compare = new TCanvas("rawmass_Wmasscut_dijets_compare", "rawmass_Wmasscut Comparison", 600, 600);
+    rawmass_Wmasscut_dijets_compare->cd();
+    mass_dijets_antikt_6jets_Wmasscut->Scale(mass_dijets_antikt_6jets_scale);
+    mass_dijets_antikt_6jets_Wmasscut->SetLineColor(kBlack);
+    mass_dijets_antikt_6jets_Wmasscut->SetLineStyle(7);
+    mass_dijets_antikt_6jets_Wmasscut->SetTitle("QCD Mass (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
+    mass_dijets_antikt_6jets_Wmasscut->GetXaxis()->SetTitle("m (GeV)");
+    mass_dijets_antikt_6jets_Wmasscut->GetYaxis()->SetTitle("Relative Occurrence");
+    // mass_dijets_antikt->Draw();
+    mass_dijets_antikt_6jets_Wmasscut->Draw();
+
+    TLegend *leg_rawmass_Wmasscut_dijets = new TLegend(0.65, 0.65, 0.88, 0.88);
+    leg_rawmass_Wmasscut_dijets->SetLineColor(0);
+    leg_rawmass_Wmasscut_dijets->SetFillColor(0);
+    // leg_rawmass_Wmasscut_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
+  // double max_val_dijets_raw = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_6jets_Wmasscut->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_6jets_Wmasscut->GetMaximum();
+    double max_val_dijets_raw_Wmasscut = mass_dijets_antikt_6jets_Wmasscut->GetMaximum();
+
+    qcd_efficiency_rawmass_Wmasscut[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_rawmass_Wmasscut[3][i_pt] = mass_dijets_antikt_6jets_Wmasscut->Integral((double)150/500*mass_dijets_antikt_6jets_Wmasscut->GetNbinsX(), (double)200/500*mass_dijets_antikt_6jets_Wmasscut->GetNbinsX());
+
+    top_efficiency_ratio_Wmasscut[2][i_pt] = (double)pow(top_efficiency_rawmass_Wmasscut[2][i_pt],2.0)/qcd_efficiency_rawmass_Wmasscut[2][i_pt];
+    top_efficiency_ratio_Wmasscut[3][i_pt] = (double)pow(top_efficiency_rawmass_Wmasscut[3][i_pt],2.0)/qcd_efficiency_rawmass_Wmasscut[3][i_pt];
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* rawmass_dijets_manual_Wmasscut = (TH1*)rawmass_dijets_manual_Wmasscut_hists.At(B);
+      rawmass_dijets_manual_Wmasscut->Scale(rawmass_dijets_manual_scale);
+
+      rawmass_dijets_manual_Wmasscut->SetStats(0);
+
+      qcd_efficiency_rawmass_Wmasscut[B][i_pt] = rawmass_dijets_manual_Wmasscut->Integral((double)150/500*rawmass_dijets_manual_Wmasscut->GetNbinsX(), (double)200/500*rawmass_dijets_manual_Wmasscut->GetNbinsX());
+      top_efficiency_ratio_Wmasscut[B][i_pt] = (double)pow(top_efficiency_rawmass_Wmasscut[B][i_pt],2.0)/qcd_efficiency_rawmass_Wmasscut[B][i_pt];
+
+      rawmass_dijets_manual_Wmasscut->SetLineColor(colorlist[B]);
+      // if (B == 0) rawmass_dijets_manual_Wmasscut->SetLineColor(kRed);
+      // if (B == 1) rawmass_dijets_manual_Wmasscut->SetLineColor(kBlue);
+      // if (B == 2) rawmass_dijets_manual_Wmasscut->SetLineColor(kRed);
+      // if (B == 3) rawmass_dijets_manual_Wmasscut->SetLineColor(kBlue);
+
+      rawmass_dijets_manual_Wmasscut->Draw("SAMES");
+      leg_rawmass_Wmasscut_dijets->AddEntry(rawmass_dijets_manual_Wmasscut, "#beta = " + (TString)ss.str());
+      rawmass_dijets_manual_Wmasscut->Write();
+
+      if (rawmass_dijets_manual_Wmasscut->GetMaximum() > max_val_dijets_raw_Wmasscut) {
+        max_val_dijets_raw = rawmass_dijets_manual_Wmasscut->GetMaximum();
+        // rawmass_dijets_manual_Wmasscut->SetMaximum(1.2*max_val_dijets_raw);
+        // rawmass_Wmasscut_dijets_compare->Update();
+      }
+    }
+    leg_rawmass_Wmasscut_dijets->AddEntry(mass_dijets_antikt_6jets_Wmasscut, "ak_{T}", "L");
+
+    mass_dijets_antikt_6jets_Wmasscut->SetMaximum(1.2*max_val_dijets_raw_Wmasscut);
+    leg_rawmass_Wmasscut_dijets->Draw();
+    radius_text_raw->Draw();
+    rawmass_Wmasscut_dijets_compare->Write();
+    rawmass_Wmasscut_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_rawmass_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
 
 
     TCanvas *mass_2groups_ttbar_compare = new TCanvas("mass_2groups_ttbar_compare", "mass_2groups Comparison", 600, 600);
     mass_2groups_ttbar_compare->cd();
     mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
+    mass_ttbar_antikt->SetLineStyle(7);
+    mass_ttbar_antikt->SetTitle("Top Mass (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
     mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
+    mass_ttbar_antikt->GetXaxis()->SetNdivisions(505);
     mass_ttbar_antikt->Draw();
 
     double mass_ttbar_antikt_2groups_scale = 1/mass_ttbar_antikt_2groups->Integral(0, mass_ttbar_antikt_2groups->GetNbinsX() + 1);
     // double mass_ttbar_antikt_2groups_scale = 1/total_ttbar_jets;
     mass_ttbar_antikt_2groups->Scale(mass_ttbar_antikt_2groups_scale);
     mass_ttbar_antikt_2groups->SetLineColor(8);
+    mass_ttbar_antikt_2groups->SetLineStyle(7);
     mass_ttbar_antikt_2groups->Draw("SAMES");
 
-    TLegend *leg_mass_2groups_ttbar = new TLegend(0.6, 0.6, 0.88, 0.88);
+    // TLegend *leg_mass_2groups_ttbar = new TLegend(0.5, 0.45, 0.86, 0.86);
+    TLegend *leg_mass_2groups_ttbar = new TLegend(0.5, 0.55, 0.86, 0.86);
     leg_mass_2groups_ttbar->SetLineColor(0);
     leg_mass_2groups_ttbar->SetFillColor(0);
-    leg_mass_2groups_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_ttbar->AddEntry(mass_ttbar_antikt_2groups, "ak_{T} (2 groups)", "L");
+    leg_mass_2groups_ttbar->SetFillStyle(0);
+    leg_mass_2groups_ttbar->SetTextSize(0.09);
+    // leg_mass_2groups_ttbar->AddEntry(mass_ttbar_antikt_2groups, "ak_{T} (Res)", "L");
     // double max_val_ttbar_2groups = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_6jets->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_6jets->GetMaximum();
     double max_val_ttbar_2groups = max_val_ttbar_akt;
 
-    top_efficiency_mass_2groups[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass_2groups[1][i_pt] = mass_ttbar_antikt_2groups->Integral((double)160/500*mass_ttbar_antikt_2groups->GetNbinsX(), (double)240/500*mass_ttbar_antikt_2groups->GetNbinsX());
+    top_efficiency_mass_2groups[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_mass_2groups[3][i_pt] = mass_ttbar_antikt_2groups->Integral((double)150/500*mass_ttbar_antikt_2groups->GetNbinsX(), (double)200/500*mass_ttbar_antikt_2groups->GetNbinsX());
 
     double mass_ttbar_manual_2groups_scale;
     for (int B = 0; B < betalist.size(); B++) {
@@ -2360,7 +2931,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual_2groups->SetStats(0);
       // mass_dijets_manual_2groups->SetStats(0);
 
-      top_efficiency_mass_2groups[B+2][i_pt] = mass_ttbar_manual_2groups->Integral((double)160/500*mass_ttbar_manual_2groups->GetNbinsX(), (double)240/500*mass_ttbar_manual_2groups->GetNbinsX());
+      top_efficiency_mass_2groups[B][i_pt] = mass_ttbar_manual_2groups->Integral((double)150/500*mass_ttbar_manual_2groups->GetNbinsX(), (double)200/500*mass_ttbar_manual_2groups->GetNbinsX());
 
       mass_ttbar_manual_2groups->SetLineColor(colorlist[B]);
       // if (B == 0) mass_ttbar_manual_2groups->SetLineColor(kRed);
@@ -2368,7 +2939,8 @@ int main(int argc, char* argv[]){
       // if (B == 2) mass_ttbar_manual_2groups->SetLineColor(kRed);
       // if (B == 3) mass_ttbar_manual_2groups->SetLineColor(kBlue);
 
-      mass_ttbar_manual_2groups->Draw("SAMES");
+      if (B == 0) final_drawn_histogram = mass_ttbar_manual_2groups;
+      if (B == 1) mass_ttbar_manual_2groups->Draw("SAMES");
       leg_mass_2groups_ttbar->AddEntry(mass_ttbar_manual_2groups, "#beta = " + (TString)ss.str());
       mass_ttbar_manual_2groups->Write();
 
@@ -2378,36 +2950,56 @@ int main(int argc, char* argv[]){
         // mass_2groups_ttbar_compare->Update();
       }
     }
+    final_drawn_histogram->Draw("SAMES");
+    leg_mass_2groups_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_ttbar->AddEntry(mass_ttbar_antikt_2groups, "ak_{T} (Res)", "L");
 
     mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_2groups);
     leg_mass_2groups_ttbar->Draw();
+
+    TPaveText *radius_text = new TPaveText(0.5, 0.45, 0.85, 0.55, "brNDC");
+    radius_text->SetTextFont(132);
+    radius_text->SetTextSize(0.08);
+    radius_text->SetFillColor(kWhite);
+    radius_text->SetLineColor(kWhite);
+    radius_text->SetFillStyle(0);
+    radius_text->SetBorderSize(0);
+    radius_text->AddText("R = 0.5");
+    radius_text->Draw();
     mass_2groups_ttbar_compare->Write();
-    mass_2groups_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *mass_2groups_dijets_compare = new TCanvas("mass_2groups_dijets_compare", "mass_2groups Comparison", 600, 600);
     mass_2groups_dijets_compare->cd();
     mass_dijets_antikt->SetLineColor(kBlack);
-    mass_dijets_antikt->SetTitle("Mass of QCD Jets");
+    mass_dijets_antikt->SetLineStyle(7);
+    mass_dijets_antikt->SetTitle("QCD Mass (" + (TString)ss_pt.str() + " < p_{T} < " + (TString)ss_pt2.str() + ")");
     mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
+    mass_dijets_antikt->GetXaxis()->SetNdivisions(505);
     mass_dijets_antikt->Draw();
 
     double mass_dijets_antikt_2groups_scale = 1/mass_dijets_antikt_2groups->Integral(0, mass_dijets_antikt_2groups->GetNbinsX() + 1);
     // double mass_dijets_antikt_2groups_scale = 1/total_dijets_jets;
     mass_dijets_antikt_2groups->Scale(mass_dijets_antikt_2groups_scale);
     mass_dijets_antikt_2groups->SetLineColor(8);
+    mass_dijets_antikt_2groups->SetLineStyle(7);
     mass_dijets_antikt_2groups->Draw("SAMES");
 
-    TLegend *leg_mass_2groups_dijets = new TLegend(0.6, 0.6, 0.88, 0.88);
+    // TLegend *leg_mass_2groups_dijets = new TLegend(0.5, 0.45, 0.86, 0.86);
+    TLegend *leg_mass_2groups_dijets = new TLegend(0.5, 0.55, 0.86, 0.86);
     leg_mass_2groups_dijets->SetLineColor(0);
     leg_mass_2groups_dijets->SetFillColor(0);
-    leg_mass_2groups_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_dijets->AddEntry(mass_dijets_antikt_2groups, "ak_{T} (2 groups)", "L");
+    leg_mass_2groups_dijets->SetFillStyle(0);
+    leg_mass_2groups_dijets->SetTextSize(0.09);
     // double max_val_dijets_2groups = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_6jets->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_6jets->GetMaximum();
     double max_val_dijets_2groups = max_val_dijets_akt;
 
-    qcd_efficiency_mass_2groups[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass_2groups[1][i_pt] = mass_dijets_antikt_2groups->Integral((double)160/500*mass_dijets_antikt_2groups->GetNbinsX(), (double)240/500*mass_dijets_antikt_2groups->GetNbinsX());
+    qcd_efficiency_mass_2groups[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_mass_2groups[3][i_pt] = mass_dijets_antikt_2groups->Integral((double)150/500*mass_dijets_antikt_2groups->GetNbinsX(), (double)200/500*mass_dijets_antikt_2groups->GetNbinsX());
+
+    top_efficiency_ratio_2groups[2][i_pt] = (double)pow(top_efficiency_mass_2groups[2][i_pt],2.0)/qcd_efficiency_mass_2groups[2][i_pt];
+    top_efficiency_ratio_2groups[3][i_pt] = (double)pow(top_efficiency_mass_2groups[3][i_pt],2.0)/qcd_efficiency_mass_2groups[3][i_pt];
 
     double mass_dijets_manual_2groups_scale;
     for (int B = 0; B < betalist.size(); B++) {
@@ -2425,7 +3017,8 @@ int main(int argc, char* argv[]){
 
       mass_dijets_manual_2groups->SetStats(0);
 
-      qcd_efficiency_mass_2groups[B+2][i_pt] = mass_dijets_manual_2groups->Integral((double)160/500*mass_dijets_manual_2groups->GetNbinsX(), (double)240/500*mass_dijets_manual_2groups->GetNbinsX());
+      qcd_efficiency_mass_2groups[B][i_pt] = mass_dijets_manual_2groups->Integral((double)150/500*mass_dijets_manual_2groups->GetNbinsX(), (double)200/500*mass_dijets_manual_2groups->GetNbinsX());
+      top_efficiency_ratio_2groups[B][i_pt] = (double)pow(top_efficiency_mass_2groups[B][i_pt],2.0)/qcd_efficiency_mass_2groups[B][i_pt];
 
       mass_dijets_manual_2groups->SetLineColor(colorlist[B]);
       // if (B == 0) mass_dijets_manual_2groups->SetLineColor(kRed);
@@ -2433,7 +3026,8 @@ int main(int argc, char* argv[]){
       // if (B == 2) mass_dijets_manual_2groups->SetLineColor(kRed);
       // if (B == 3) mass_dijets_manual_2groups->SetLineColor(kBlue);
 
-      mass_dijets_manual_2groups->Draw("SAMES");
+      if (B == 0) final_drawn_histogram = mass_dijets_manual_2groups;
+      if (B == 1) mass_dijets_manual_2groups->Draw("SAMES");
       leg_mass_2groups_dijets->AddEntry(mass_dijets_manual_2groups, "#beta = " + (TString)ss.str());
       mass_dijets_manual_2groups->Write();
 
@@ -2443,17 +3037,22 @@ int main(int argc, char* argv[]){
         // mass_2groups_dijets_compare->Update();
       }
     }
+    final_drawn_histogram->Draw("SAMES");
+    leg_mass_2groups_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
+    // leg_mass_2groups_dijets->AddEntry(mass_dijets_antikt_2groups, "ak_{T} (Res)", "L");
+    leg_mass_2groups_dijets->AddEntry(mass_dijets_antikt_2groups, "ak_{T} (Res)", "L");
 
     mass_dijets_antikt->SetMaximum(1.2*max_val_dijets_2groups);
     leg_mass_2groups_dijets->Draw();
+    radius_text->Draw();
     mass_2groups_dijets_compare->Write();
-    mass_2groups_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_2groups_improved_ttbar_compare = new TCanvas("mass_2groups_improved_ttbar_compare", "mass_2groups_improved Comparison", 600, 600);
     mass_2groups_improved_ttbar_compare->cd();
     mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
+    mass_ttbar_antikt->SetTitle("Top Mass");
     mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_ttbar_antikt->Draw();
@@ -2462,13 +3061,11 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_2groups_improved_ttbar = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_2groups_improved_ttbar->SetLineColor(0);
     leg_mass_2groups_improved_ttbar->SetFillColor(0);
-    leg_mass_2groups_improved_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_improved_ttbar->AddEntry(mass_ttbar_antikt_6jets, "ak_{T} (6-jet)", "L");
     // double max_val_ttbar_2groups_improved = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_6jets->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_6jets->GetMaximum();
     double max_val_ttbar_2groups_improved = max_val_ttbar_akt;
 
-    top_efficiency_mass_2groups_improved[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass_2groups_improved[1][i_pt] = mass_ttbar_antikt_6jets->Integral((double)160/500*mass_ttbar_antikt_6jets->GetNbinsX(), (double)240/500*mass_ttbar_antikt_6jets->GetNbinsX());
+    top_efficiency_mass_2groups_improved[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_mass_2groups_improved[3][i_pt] = mass_ttbar_antikt_6jets->Integral((double)150/500*mass_ttbar_antikt_6jets->GetNbinsX(), (double)200/500*mass_ttbar_antikt_6jets->GetNbinsX());
 
     double mass_ttbar_manual_2groups_improved_scale;
     for (int B = 0; B < betalist.size(); B++) {
@@ -2489,7 +3086,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual_2groups_improved->SetStats(0);
       // mass_dijets_manual_2groups_improved->SetStats(0);
 
-      top_efficiency_mass_2groups_improved[B+2][i_pt] = mass_ttbar_manual_2groups_improved->Integral((double)160/500*mass_ttbar_manual_2groups_improved->GetNbinsX(), (double)240/500*mass_ttbar_manual_2groups_improved->GetNbinsX());
+      top_efficiency_mass_2groups_improved[B][i_pt] = mass_ttbar_manual_2groups_improved->Integral((double)150/500*mass_ttbar_manual_2groups_improved->GetNbinsX(), (double)200/500*mass_ttbar_manual_2groups_improved->GetNbinsX());
 
       mass_ttbar_manual_2groups_improved->SetLineColor(colorlist[B]);
       // if (B == 0) mass_ttbar_manual_2groups_improved->SetLineColor(kRed);
@@ -2507,16 +3104,19 @@ int main(int argc, char* argv[]){
         // mass_2groups_improved_ttbar_compare->Update();
       }
     }
+    leg_mass_2groups_improved_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_improved_ttbar->AddEntry(mass_ttbar_antikt_6jets, "ak_{T} (Res)", "L");
 
     mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_2groups_improved);
     leg_mass_2groups_improved_ttbar->Draw();
+    radius_text->Draw();
     mass_2groups_improved_ttbar_compare->Write();
-    mass_2groups_improved_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_improved_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *mass_2groups_improved_dijets_compare = new TCanvas("mass_2groups_improved_dijets_compare", "mass_2groups_improved Comparison", 600, 600);
     mass_2groups_improved_dijets_compare->cd();
     mass_dijets_antikt->SetLineColor(kBlack);
-    mass_dijets_antikt->SetTitle("Mass of QCD Jets");
+    mass_dijets_antikt->SetTitle("QCD Mass");
     mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_dijets_antikt->Draw();
@@ -2525,13 +3125,11 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_2groups_improved_dijets = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_2groups_improved_dijets->SetLineColor(0);
     leg_mass_2groups_improved_dijets->SetFillColor(0);
-    leg_mass_2groups_improved_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_improved_dijets->AddEntry(mass_dijets_antikt_6jets, "ak_{T} (6-jet)", "L");
     // double max_val_dijets_2groups_improved = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_6jets->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_6jets->GetMaximum();
     double max_val_dijets_2groups_improved = max_val_dijets_akt;
 
-    qcd_efficiency_mass_2groups_improved[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass_2groups_improved[1][i_pt] = mass_dijets_antikt_6jets->Integral((double)160/500*mass_dijets_antikt_6jets->GetNbinsX(), (double)240/500*mass_dijets_antikt_6jets->GetNbinsX());
+    qcd_efficiency_mass_2groups_improved[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_mass_2groups_improved[3][i_pt] = mass_dijets_antikt_6jets->Integral((double)150/500*mass_dijets_antikt_6jets->GetNbinsX(), (double)200/500*mass_dijets_antikt_6jets->GetNbinsX());
 
     double mass_dijets_manual_2groups_improved_scale;
     for (int B = 0; B < betalist.size(); B++) {
@@ -2548,7 +3146,7 @@ int main(int argc, char* argv[]){
 
       mass_dijets_manual_2groups_improved->SetStats(0);
 
-      qcd_efficiency_mass_2groups_improved[B+2][i_pt] = mass_dijets_manual_2groups_improved->Integral((double)160/500*mass_dijets_manual_2groups_improved->GetNbinsX(), (double)240/500*mass_dijets_manual_2groups_improved->GetNbinsX());
+      qcd_efficiency_mass_2groups_improved[B][i_pt] = mass_dijets_manual_2groups_improved->Integral((double)150/500*mass_dijets_manual_2groups_improved->GetNbinsX(), (double)200/500*mass_dijets_manual_2groups_improved->GetNbinsX());
 
       mass_dijets_manual_2groups_improved->SetLineColor(colorlist[B]);
       // if (B == 0) mass_dijets_manual_2groups_improved->SetLineColor(kRed);
@@ -2566,11 +3164,14 @@ int main(int argc, char* argv[]){
         // mass_2groups_improved_dijets_compare->Update();
       }
     }
+    leg_mass_2groups_improved_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_improved_dijets->AddEntry(mass_dijets_antikt_6jets, "ak_{T} (Res)", "L");
 
     mass_dijets_antikt->SetMaximum(1.2*max_val_dijets_2groups_improved);
     leg_mass_2groups_improved_dijets->Draw();
+    radius_text->Draw();
     mass_2groups_improved_dijets_compare->Write();
-    mass_2groups_improved_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_improved_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *minmass_2groups_ttbar_compare = new TCanvas("minmass_2groups_ttbar_compare", "minmass_2groups Comparison", 600, 600);
     minmass_2groups_ttbar_compare->cd();
@@ -2585,7 +3186,6 @@ int main(int argc, char* argv[]){
     TLegend *leg_minmass_2groups_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
     leg_minmass_2groups_ttbar->SetLineColor(0);
     leg_minmass_2groups_ttbar->SetFillColor(0);
-    leg_minmass_2groups_ttbar->AddEntry(minmass_ttbar_antikt_2groups, "ak_{T} (2 groups)", "L");
     double max_val_ttbar_2groups_minmass = minmass_ttbar_antikt_2groups->GetMaximum();
 
     for (int B = 0; B < betalist.size(); B++) {
@@ -2625,11 +3225,12 @@ int main(int argc, char* argv[]){
         // minmass_2groups_ttbar_compare->Update();
       }
     }
+    leg_minmass_2groups_ttbar->AddEntry(minmass_ttbar_antikt_2groups, "ak_{T} (2 groups)", "L");
 
     minmass_ttbar_antikt_2groups->SetMaximum(1.2*max_val_ttbar_2groups_minmass);
     leg_minmass_2groups_ttbar->Draw();
     minmass_2groups_ttbar_compare->Write();
-    minmass_2groups_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_minmass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    minmass_2groups_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_minmass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *minmass_2groups_dijets_compare = new TCanvas("minmass_2groups_dijets_compare", "minmass_2groups Comparison", 600, 600);
@@ -2637,14 +3238,13 @@ int main(int argc, char* argv[]){
 
     double minmass_dijets_antikt_2groups_scale = 1/minmass_dijets_antikt_2groups->Integral(0, minmass_dijets_antikt_2groups->GetNbinsX() + 1);
     minmass_dijets_antikt_2groups->Scale(minmass_dijets_antikt_2groups_scale);
-    minmass_dijets_antikt_2groups->SetTitle("minmass of QCD Jets");
+    minmass_dijets_antikt_2groups->SetTitle("minQCD Mass");
     minmass_dijets_antikt_2groups->SetLineColor(8);
     minmass_dijets_antikt_2groups->Draw();
 
     TLegend *leg_minmass_2groups_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
     leg_minmass_2groups_dijets->SetLineColor(0);
     leg_minmass_2groups_dijets->SetFillColor(0);
-    leg_minmass_2groups_dijets->AddEntry(minmass_dijets_antikt_2groups, "ak_{T} (2 groups)", "L");
     // double max_val_dijets_2groups = (minmass_dijets_antikt->GetMaximum() > minmass_dijets_antikt_6jets->GetMaximum()) ? minmass_dijets_antikt->GetMaximum() : minmass_dijets_antikt_6jets->GetMaximum();
     double max_val_dijets_2groups_minmass = minmass_ttbar_antikt_2groups->GetMaximum();
 
@@ -2679,11 +3279,12 @@ int main(int argc, char* argv[]){
         // minmass_2groups_dijets_compare->Update();
       }
     }
+    leg_minmass_2groups_dijets->AddEntry(minmass_dijets_antikt_2groups, "ak_{T} (2 groups)", "L");
 
     minmass_dijets_antikt_2groups->SetMaximum(1.2*max_val_dijets_2groups_minmass);
     leg_minmass_2groups_dijets->Draw();
     minmass_2groups_dijets_compare->Write();
-    minmass_2groups_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_minmass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    minmass_2groups_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_minmass_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *minmass_2groups_improved_ttbar_compare = new TCanvas("minmass_2groups_improved_ttbar_compare", "minmass_2groups_improved Comparison", 600, 600);
@@ -2697,7 +3298,6 @@ int main(int argc, char* argv[]){
     TLegend *leg_minmass_2groups_improved_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
     leg_minmass_2groups_improved_ttbar->SetLineColor(0);
     leg_minmass_2groups_improved_ttbar->SetFillColor(0);
-    leg_minmass_2groups_improved_ttbar->AddEntry(minmass_ttbar_antikt_2groups, "ak_{T} (2 groups)", "L");
     double max_val_ttbar_2groups_improved_minmass = minmass_ttbar_antikt_2groups->GetMaximum();
 
     for (int B = 0; B < betalist.size(); B++) {
@@ -2737,24 +3337,24 @@ int main(int argc, char* argv[]){
         // minmass_2groups_improved_ttbar_compare->Update();
       }
     }
+    leg_minmass_2groups_improved_ttbar->AddEntry(minmass_ttbar_antikt_2groups, "ak_{T} (2 groups)", "L");
 
     minmass_ttbar_antikt_2groups->SetMaximum(1.2*max_val_ttbar_2groups_improved_minmass);
     leg_minmass_2groups_improved_ttbar->Draw();
     minmass_2groups_improved_ttbar_compare->Write();
-    minmass_2groups_improved_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_minmass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    minmass_2groups_improved_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_minmass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *minmass_2groups_improved_dijets_compare = new TCanvas("minmass_2groups_improved_dijets_compare", "minmass_2groups_improved Comparison", 600, 600);
     minmass_2groups_improved_dijets_compare->cd();
 
-    minmass_dijets_antikt_2groups->SetTitle("minmass of QCD Jets");
+    minmass_dijets_antikt_2groups->SetTitle("minQCD Mass");
     minmass_dijets_antikt_2groups->SetLineColor(8);
     minmass_dijets_antikt_2groups->Draw();
 
     TLegend *leg_minmass_2groups_improved_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
     leg_minmass_2groups_improved_dijets->SetLineColor(0);
     leg_minmass_2groups_improved_dijets->SetFillColor(0);
-    leg_minmass_2groups_improved_dijets->AddEntry(minmass_dijets_antikt_2groups, "ak_{T} (2 groups)", "L");
     // double max_val_dijets_2groups_improved = (minmass_dijets_antikt->GetMaximum() > minmass_dijets_antikt_6jets->GetMaximum()) ? minmass_dijets_antikt->GetMaximum() : minmass_dijets_antikt_6jets->GetMaximum();
     double max_val_dijets_2groups_improved_minmass = minmass_ttbar_antikt_2groups->GetMaximum();
 
@@ -2789,23 +3389,25 @@ int main(int argc, char* argv[]){
         // minmass_2groups_improved_dijets_compare->Update();
       }
     }
+    leg_minmass_2groups_improved_dijets->AddEntry(minmass_dijets_antikt_2groups, "ak_{T} (2 groups)", "L");
 
     minmass_dijets_antikt_2groups->SetMaximum(1.2*max_val_dijets_2groups_improved_minmass);
     leg_minmass_2groups_improved_dijets->Draw();
     minmass_2groups_improved_dijets_compare->Write();
-    minmass_2groups_improved_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_minmass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    minmass_2groups_improved_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_minmass_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_2groups_Wmasscut_ttbar_compare = new TCanvas("mass_2groups_Wmasscut_ttbar_compare", "mass_2groups_Wmasscut Comparison", 600, 600);
     mass_2groups_Wmasscut_ttbar_compare->cd();
-    mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
-    mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
-    mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
-    mass_ttbar_antikt->Draw();
 
-    // double mass_ttbar_antikt_2groups_Wmasscut_scale = 1/mass_ttbar_antikt_2groups->Integral(0, mass_ttbar_antikt_2groups->GetNbinsX() + 1);
-    // double mass_ttbar_antikt_2groups_Wmasscut_scale = 1/total_ttbar_jets;
+    // double mass_ttbar_antikt_Wmasscut_scale = 1/mass_ttbar_antikt_Wmasscut->Integral(0, mass_ttbar_antikt_Wmasscut->GetNbinsX() + 1);
+    mass_ttbar_antikt_Wmasscut->Scale(mass_ttbar_antikt_scale);
+    mass_ttbar_antikt_Wmasscut->SetLineColor(kBlack);
+    mass_ttbar_antikt_Wmasscut->SetTitle("Top Mass");
+    mass_ttbar_antikt_Wmasscut->GetXaxis()->SetTitle("m (GeV)");
+    mass_ttbar_antikt_Wmasscut->GetYaxis()->SetTitle("Relative Occurrence");
+    mass_ttbar_antikt_Wmasscut->Draw();
+
     mass_ttbar_antikt_2groups_Wmasscut->Scale(mass_ttbar_antikt_2groups_scale);
     mass_ttbar_antikt_2groups_Wmasscut->SetLineColor(8);
     mass_ttbar_antikt_2groups_Wmasscut->Draw("SAMES");
@@ -2813,12 +3415,11 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_2groups_Wmasscut_ttbar = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_2groups_Wmasscut_ttbar->SetLineColor(0);
     leg_mass_2groups_Wmasscut_ttbar->SetFillColor(0);
-    leg_mass_2groups_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_2groups_Wmasscut, "ak_{T} (2 groups)", "L");
-    double max_val_ttbar_2groups_Wmasscut = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_2groups_Wmasscut->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_2groups_Wmasscut->GetMaximum();
+    // leg_mass_2groups_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
+    double max_val_ttbar_2groups_Wmasscut = (mass_ttbar_antikt_Wmasscut->GetMaximum() > mass_ttbar_antikt_2groups_Wmasscut->GetMaximum()) ? mass_ttbar_antikt_Wmasscut->GetMaximum() : mass_ttbar_antikt_2groups_Wmasscut->GetMaximum();
 
-    top_efficiency_mass_2groups_Wmasscut[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass_2groups_Wmasscut[1][i_pt] = mass_ttbar_antikt_2groups_Wmasscut->Integral((double)160/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX(), (double)240/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX());
+    top_efficiency_mass_2groups_Wmasscut[2][i_pt] = mass_ttbar_antikt_Wmasscut->Integral((double)150/500*mass_ttbar_antikt_Wmasscut->GetNbinsX(), (double)200/500*mass_ttbar_antikt_Wmasscut->GetNbinsX());
+    top_efficiency_mass_2groups_Wmasscut[3][i_pt] = mass_ttbar_antikt_2groups_Wmasscut->Integral((double)150/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX(), (double)200/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX());
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -2844,7 +3445,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual_2groups_Wmasscut->SetStats(0);
       // mass_dijets_manual_2groups_Wmasscut->SetStats(0);
 
-      top_efficiency_mass_2groups_Wmasscut[B+2][i_pt] = mass_ttbar_manual_2groups_Wmasscut->Integral((double)160/500*mass_ttbar_manual_2groups_Wmasscut->GetNbinsX(), (double)240/500*mass_ttbar_manual_2groups_Wmasscut->GetNbinsX());
+      top_efficiency_mass_2groups_Wmasscut[B][i_pt] = mass_ttbar_manual_2groups_Wmasscut->Integral((double)150/500*mass_ttbar_manual_2groups_Wmasscut->GetNbinsX(), (double)200/500*mass_ttbar_manual_2groups_Wmasscut->GetNbinsX());
 
       mass_ttbar_manual_2groups_Wmasscut->SetLineColor(colorlist[B]);
       // if (B == 0) mass_ttbar_manual_2groups_Wmasscut->SetLineColor(kRed);
@@ -2862,22 +3463,26 @@ int main(int argc, char* argv[]){
         // mass_2groups_Wmasscut_ttbar_compare->Update();
       }
     }
+    leg_mass_2groups_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_Wmasscut, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
 
-    mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_2groups_Wmasscut);
+    mass_ttbar_antikt_Wmasscut->SetMaximum(1.2*max_val_ttbar_2groups_Wmasscut);
     leg_mass_2groups_Wmasscut_ttbar->Draw();
+    radius_text->Draw();
     mass_2groups_Wmasscut_ttbar_compare->Write();
-    mass_2groups_Wmasscut_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_Wmasscut_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *mass_2groups_Wmasscut_dijets_compare = new TCanvas("mass_2groups_Wmasscut_dijets_compare", "mass_2groups_Wmasscut Comparison", 600, 600);
     mass_2groups_Wmasscut_dijets_compare->cd();
-    mass_dijets_antikt->SetLineColor(kBlack);
-    mass_dijets_antikt->SetTitle("Mass of QCD Jets");
-    mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
-    mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
-    mass_dijets_antikt->Draw();
 
-    // double mass_dijets_antikt_2groups_Wmasscut_scale = 1/mass_dijets_antikt_2groups->Integral(0, mass_dijets_antikt_2groups->GetNbinsX() + 1);
-    // double mass_dijets_antikt_2groups_Wmasscut_scale = 1/total_dijets_jets;
+    // double mass_dijets_antikt_Wmasscut_scale = 1/mass_dijets_antikt_Wmasscut->Integral(0, mass_dijets_antikt_Wmasscut->GetNbinsX() + 1);
+    mass_dijets_antikt_Wmasscut->Scale(mass_dijets_antikt_scale);
+    mass_dijets_antikt_Wmasscut->SetLineColor(kBlack);
+    mass_dijets_antikt_Wmasscut->SetTitle("QCD Mass");
+    mass_dijets_antikt_Wmasscut->GetXaxis()->SetTitle("m (GeV)");
+    mass_dijets_antikt_Wmasscut->GetYaxis()->SetTitle("Relative Occurrence");
+    mass_dijets_antikt_Wmasscut->Draw();
+
     mass_dijets_antikt_2groups_Wmasscut->Scale(mass_dijets_antikt_2groups_scale);
     mass_dijets_antikt_2groups_Wmasscut->SetLineColor(8);
     mass_dijets_antikt_2groups_Wmasscut->Draw("SAMES");
@@ -2885,13 +3490,15 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_2groups_Wmasscut_dijets = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_2groups_Wmasscut_dijets->SetLineColor(0);
     leg_mass_2groups_Wmasscut_dijets->SetFillColor(0);
-    leg_mass_2groups_Wmasscut_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_Wmasscut_dijets->AddEntry(mass_dijets_antikt_2groups_Wmasscut, "ak_{T} (2 groups)", "L");
-    double max_val_dijets_2groups_Wmasscut = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_2groups_Wmasscut->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_2groups_Wmasscut->GetMaximum();
+    // leg_mass_2groups_Wmasscut_dijets->AddEntry(mass_dijets_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
+    double max_val_dijets_2groups_Wmasscut = (mass_dijets_antikt_Wmasscut->GetMaximum() > mass_dijets_antikt_2groups_Wmasscut->GetMaximum()) ? mass_dijets_antikt_Wmasscut->GetMaximum() : mass_dijets_antikt_2groups_Wmasscut->GetMaximum();
     // double max_val_dijets_2groups_Wmasscut = max_val_dijets_akt;
 
-    qcd_efficiency_mass_2groups_Wmasscut[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass_2groups_Wmasscut[1][i_pt] = mass_dijets_antikt_2groups_Wmasscut->Integral((double)160/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX(), (double)240/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX());
+    qcd_efficiency_mass_2groups_Wmasscut[2][i_pt] = mass_dijets_antikt_Wmasscut->Integral((double)150/500*mass_dijets_antikt_Wmasscut->GetNbinsX(), (double)200/500*mass_dijets_antikt_Wmasscut->GetNbinsX());
+    qcd_efficiency_mass_2groups_Wmasscut[3][i_pt] = mass_dijets_antikt_2groups_Wmasscut->Integral((double)150/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX(), (double)200/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX());
+
+    top_efficiency_ratio_2groups_Wmasscut[2][i_pt] = (double)pow(top_efficiency_mass_2groups_Wmasscut[2][i_pt],2.0)/(qcd_efficiency_mass_2groups_Wmasscut[2][i_pt]);
+    top_efficiency_ratio_2groups_Wmasscut[3][i_pt] = (double)pow(top_efficiency_mass_2groups_Wmasscut[3][i_pt],2.0)/(qcd_efficiency_mass_2groups_Wmasscut[3][i_pt]);
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -2910,7 +3517,8 @@ int main(int argc, char* argv[]){
 
       mass_dijets_manual_2groups_Wmasscut->SetStats(0);
 
-      qcd_efficiency_mass_2groups_Wmasscut[B+2][i_pt] = mass_dijets_manual_2groups_Wmasscut->Integral((double)160/500*mass_dijets_manual_2groups_Wmasscut->GetNbinsX(), (double)240/500*mass_dijets_manual_2groups_Wmasscut->GetNbinsX());
+      qcd_efficiency_mass_2groups_Wmasscut[B][i_pt] = mass_dijets_manual_2groups_Wmasscut->Integral((double)150/500*mass_dijets_manual_2groups_Wmasscut->GetNbinsX(), (double)200/500*mass_dijets_manual_2groups_Wmasscut->GetNbinsX());
+      top_efficiency_ratio_2groups_Wmasscut[B][i_pt] = (double)pow(top_efficiency_mass_2groups_Wmasscut[B][i_pt],2.0)/(qcd_efficiency_mass_2groups_Wmasscut[B][i_pt]);
 
       mass_dijets_manual_2groups_Wmasscut->SetLineColor(colorlist[B]);
       // if (B == 0) mass_dijets_manual_2groups_Wmasscut->SetLineColor(kRed);
@@ -2928,17 +3536,20 @@ int main(int argc, char* argv[]){
         // mass_2groups_Wmasscut_dijets_compare->Update();
       }
     }
+    leg_mass_2groups_Wmasscut_dijets->AddEntry(mass_dijets_antikt_Wmasscut, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_Wmasscut_dijets->AddEntry(mass_dijets_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
 
-    mass_dijets_antikt->SetMaximum(1.2*max_val_dijets_2groups_Wmasscut);
+    mass_dijets_antikt_Wmasscut->SetMaximum(1.2*max_val_dijets_2groups_Wmasscut);
     leg_mass_2groups_Wmasscut_dijets->Draw();
+    radius_text->Draw();
     mass_2groups_Wmasscut_dijets_compare->Write();
-    mass_2groups_Wmasscut_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_Wmasscut_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_2groups_improved_Wmasscut_ttbar_compare = new TCanvas("mass_2groups_improved_Wmasscut_ttbar_compare", "mass_2groups_improved_Wmasscut Comparison", 600, 600);
     mass_2groups_improved_Wmasscut_ttbar_compare->cd();
     mass_ttbar_antikt->SetLineColor(kBlack);
-    mass_ttbar_antikt->SetTitle("Mass of Top Jets");
+    mass_ttbar_antikt->SetTitle("Top Mass");
     mass_ttbar_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_ttbar_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_ttbar_antikt->Draw();
@@ -2952,12 +3563,11 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_2groups_improved_Wmasscut_ttbar = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_2groups_improved_Wmasscut_ttbar->SetLineColor(0);
     leg_mass_2groups_improved_Wmasscut_ttbar->SetFillColor(0);
-    leg_mass_2groups_improved_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_improved_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_2groups_Wmasscut, "ak_{T} (2 groups)", "L");
+    // leg_mass_2groups_improved_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
     double max_val_ttbar_2groups_improved_Wmasscut = (mass_ttbar_antikt->GetMaximum() > mass_ttbar_antikt_2groups_Wmasscut->GetMaximum()) ? mass_ttbar_antikt->GetMaximum() : mass_ttbar_antikt_2groups_Wmasscut->GetMaximum();
 
-    top_efficiency_mass_2groups_improved_Wmasscut[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass_2groups_improved_Wmasscut[1][i_pt] = mass_ttbar_antikt_2groups_Wmasscut->Integral((double)160/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX(), (double)240/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX());
+    top_efficiency_mass_2groups_improved_Wmasscut[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_mass_2groups_improved_Wmasscut[3][i_pt] = mass_ttbar_antikt_2groups_Wmasscut->Integral((double)150/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX(), (double)200/500*mass_ttbar_antikt_2groups_Wmasscut->GetNbinsX());
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -2983,7 +3593,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual_2groups_improved_Wmasscut->SetStats(0);
       // mass_dijets_manual_2groups_improved_Wmasscut->SetStats(0);
 
-      top_efficiency_mass_2groups_improved_Wmasscut[B+2][i_pt] = mass_ttbar_manual_2groups_improved_Wmasscut->Integral((double)160/500*mass_ttbar_manual_2groups_improved_Wmasscut->GetNbinsX(), (double)240/500*mass_ttbar_manual_2groups_improved_Wmasscut->GetNbinsX());
+      top_efficiency_mass_2groups_improved_Wmasscut[B][i_pt] = mass_ttbar_manual_2groups_improved_Wmasscut->Integral((double)150/500*mass_ttbar_manual_2groups_improved_Wmasscut->GetNbinsX(), (double)200/500*mass_ttbar_manual_2groups_improved_Wmasscut->GetNbinsX());
 
       mass_ttbar_manual_2groups_improved_Wmasscut->SetLineColor(colorlist[B]);
       // if (B == 0) mass_ttbar_manual_2groups_improved_Wmasscut->SetLineColor(kRed);
@@ -3001,16 +3611,18 @@ int main(int argc, char* argv[]){
         // mass_2groups_improved_Wmasscut_ttbar_compare->Update();
       }
     }
+    leg_mass_2groups_improved_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_improved_Wmasscut_ttbar->AddEntry(mass_ttbar_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
 
     mass_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_2groups_improved_Wmasscut);
     leg_mass_2groups_improved_Wmasscut_ttbar->Draw();
     mass_2groups_improved_Wmasscut_ttbar_compare->Write();
-    mass_2groups_improved_Wmasscut_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_2groups_improved_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_improved_Wmasscut_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_2groups_improved_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *mass_2groups_improved_Wmasscut_dijets_compare = new TCanvas("mass_2groups_improved_Wmasscut_dijets_compare", "mass_2groups_improved_Wmasscut Comparison", 600, 600);
     mass_2groups_improved_Wmasscut_dijets_compare->cd();
     mass_dijets_antikt->SetLineColor(kBlack);
-    mass_dijets_antikt->SetTitle("Mass of QCD Jets");
+    mass_dijets_antikt->SetTitle("QCD Mass");
     mass_dijets_antikt->GetXaxis()->SetTitle("m (GeV)");
     mass_dijets_antikt->GetYaxis()->SetTitle("Relative Occurrence");
     mass_dijets_antikt->Draw();
@@ -3024,13 +3636,12 @@ int main(int argc, char* argv[]){
     TLegend *leg_mass_2groups_improved_Wmasscut_dijets = new TLegend(0.6, 0.6, 0.88, 0.88);
     leg_mass_2groups_improved_Wmasscut_dijets->SetLineColor(0);
     leg_mass_2groups_improved_Wmasscut_dijets->SetFillColor(0);
-    leg_mass_2groups_improved_Wmasscut_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (2-jet)", "L");
-    leg_mass_2groups_improved_Wmasscut_dijets->AddEntry(mass_dijets_antikt_2groups_Wmasscut, "ak_{T} (2 groups)", "L");
+    // leg_mass_2groups_improved_Wmasscut_dijets->AddEntry(mass_dijets_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
     double max_val_dijets_2groups_improved_Wmasscut = (mass_dijets_antikt->GetMaximum() > mass_dijets_antikt_2groups_Wmasscut->GetMaximum()) ? mass_dijets_antikt->GetMaximum() : mass_dijets_antikt_2groups_Wmasscut->GetMaximum();
     // double max_val_dijets_2groups_improved_Wmasscut = max_val_dijets_akt;
 
-    qcd_efficiency_mass_2groups_improved_Wmasscut[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass_2groups_improved_Wmasscut[1][i_pt] = mass_dijets_antikt_2groups_Wmasscut->Integral((double)160/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX(), (double)240/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX());
+    qcd_efficiency_mass_2groups_improved_Wmasscut[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_mass_2groups_improved_Wmasscut[3][i_pt] = mass_dijets_antikt_2groups_Wmasscut->Integral((double)150/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX(), (double)200/500*mass_dijets_antikt_2groups_Wmasscut->GetNbinsX());
 
     for (int B = 0; B < betalist.size(); B++) {
 
@@ -3049,7 +3660,7 @@ int main(int argc, char* argv[]){
 
       mass_dijets_manual_2groups_improved_Wmasscut->SetStats(0);
 
-      qcd_efficiency_mass_2groups_improved_Wmasscut[B+2][i_pt] = mass_dijets_manual_2groups_improved_Wmasscut->Integral((double)160/500*mass_dijets_manual_2groups_improved_Wmasscut->GetNbinsX(), (double)240/500*mass_dijets_manual_2groups_improved_Wmasscut->GetNbinsX());
+      qcd_efficiency_mass_2groups_improved_Wmasscut[B][i_pt] = mass_dijets_manual_2groups_improved_Wmasscut->Integral((double)150/500*mass_dijets_manual_2groups_improved_Wmasscut->GetNbinsX(), (double)200/500*mass_dijets_manual_2groups_improved_Wmasscut->GetNbinsX());
 
       mass_dijets_manual_2groups_improved_Wmasscut->SetLineColor(colorlist[B]);
       // if (B == 0) mass_dijets_manual_2groups_improved_Wmasscut->SetLineColor(kRed);
@@ -3067,11 +3678,13 @@ int main(int argc, char* argv[]){
         // mass_2groups_improved_Wmasscut_dijets_compare->Update();
       }
     }
+    leg_mass_2groups_improved_Wmasscut_dijets->AddEntry(mass_dijets_antikt, "ak_{T} (Bst)", "L");
+    leg_mass_2groups_improved_Wmasscut_dijets->AddEntry(mass_dijets_antikt_2groups_Wmasscut, "ak_{T} (Res)", "L");
 
     mass_dijets_antikt->SetMaximum(1.2*max_val_dijets_2groups_improved_Wmasscut);
     leg_mass_2groups_improved_Wmasscut_dijets->Draw();
     mass_2groups_improved_Wmasscut_dijets_compare->Write();
-    mass_2groups_improved_Wmasscut_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_2groups_improved_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_2groups_improved_Wmasscut_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_2groups_improved_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_ttbar_3jet4jet_2groups_compare = new TCanvas("mass_ttbar_3jet4jet_2groups_compare", "mass_ttbar_3jet4jet_2groups_compare", 600, 600);
@@ -3087,13 +3700,12 @@ int main(int argc, char* argv[]){
     mass_ttbar_antikt_3jet4jet_2groups_compare->Draw("box");
     double max_val_mass_ttbar_3jet4jet_2groups = mass_ttbar_antikt_3jet4jet_2groups_compare->GetMaximum();
 
-    TLegend *leg_mass_ttbar_3jet4jet_2groups = new TLegend(0.14, 0.65, 0.35, 0.88);
+    TLegend *leg_mass_ttbar_3jet4jet_2groups = new TLegend(0.17, 0.65, 0.35, 0.88);
     leg_mass_ttbar_3jet4jet_2groups->SetFillColor(kWhite);
     leg_mass_ttbar_3jet4jet_2groups->SetLineColor(kWhite);
-    leg_mass_ttbar_3jet4jet_2groups->AddEntry(mass_ttbar_antikt_3jet4jet_2groups_compare, "ak_{T}", "L");
 
-    top_efficiency_mass_3jet4jet_2groups[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass_3jet4jet_2groups[1][i_pt] = (double)total_ttbar_events[1]*mass_ttbar_antikt_2groups_scale;
+    top_efficiency_mass_3jet4jet_2groups[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_mass_3jet4jet_2groups[3][i_pt] = (double)total_ttbar_events[3]*mass_ttbar_antikt_2groups_scale;
 
     for (int B = 0; B < n_betas; B++) {
 
@@ -3112,7 +3724,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual_3jet4jet_2groups_compare->SetMarkerColor(colorlist[B]);
       mass_ttbar_manual_3jet4jet_2groups_compare->SetLineColor(colorlist[B]);
 
-      top_efficiency_mass_3jet4jet_2groups[B+2][i_pt] = (double)total_ttbar_events[B+2]*mass_ttbar_manual_2groups_scale;
+      top_efficiency_mass_3jet4jet_2groups[B][i_pt] = (double)total_ttbar_events[B]*mass_ttbar_manual_2groups_scale;
 
       mass_ttbar_manual_3jet4jet_2groups_compare->Draw("box SAMES");
       leg_mass_ttbar_3jet4jet_2groups->AddEntry(mass_ttbar_manual_3jet4jet_2groups_compare, "#beta = " + (TString)ss.str(), "L");
@@ -3121,49 +3733,50 @@ int main(int argc, char* argv[]){
     }
 
     TLine *line1 = new TLine();
-    line1->SetX1(160);
+    line1->SetX1(150);
     line1->SetVertical(true);
     line1->SetY1(0);
     line1->SetY2(500);
     line1->SetLineColor(kRed);
-    line1->SetLineWidth(3);
+    line1->SetLineWidth(4);
     line1->SetLineStyle(7);
     line1->Draw("SAMES");
 
     TLine *line2 = new TLine();
-    line2->SetX1(240);
+    line2->SetX1(200);
     line2->SetVertical(true);
     line2->SetY1(0);
     line2->SetY2(500);
     line2->SetLineColor(kRed);
-    line2->SetLineWidth(3);
+    line2->SetLineWidth(4);
     line2->SetLineStyle(7);
     line2->Draw("SAMES");
 
     TLine *line3 = new TLine();
-    line3->SetY1(160);
+    line3->SetY1(150);
     line3->SetHorizontal(true);
     line3->SetX1(0);
     line3->SetX2(500);
     line3->SetLineColor(kRed);
-    line3->SetLineWidth(3);
+    line3->SetLineWidth(4);
     line3->SetLineStyle(7);
     line3->Draw("SAMES");
 
     TLine *line4 = new TLine();
-    line4->SetY1(240);
+    line4->SetY1(200);
     line4->SetHorizontal(true);
     line4->SetX1(0);
     line4->SetX2(500);
     line4->SetLineColor(kRed);
-    line4->SetLineWidth(3);
+    line4->SetLineWidth(4);
     line4->SetLineStyle(7);
     line4->Draw("SAMES");
+    leg_mass_ttbar_3jet4jet_2groups->AddEntry(mass_ttbar_antikt_3jet4jet_2groups_compare, "ak_{T}", "L");
 
     mass_ttbar_antikt_3jet4jet_2groups_compare->SetMaximum(1.2*max_val_mass_ttbar_3jet4jet_2groups);
     leg_mass_ttbar_3jet4jet_2groups->Draw("SAMES");
     mass_ttbar_3jet4jet_2groups_compare->Write();
-    mass_ttbar_3jet4jet_2groups_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_ttbar_3jet4jet_2groups_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_dijets_3jet4jet_2groups_compare = new TCanvas("mass_dijets_3jet4jet_2groups_compare", "mass_dijets_3jet4jet_2groups_compare", 600, 600);
@@ -3179,13 +3792,12 @@ int main(int argc, char* argv[]){
     mass_dijets_antikt_3jet4jet_2groups_compare->Draw("box");
     double max_val_mass_dijets_3jet4jet_2groups = mass_dijets_antikt_3jet4jet_2groups_compare->GetMaximum();
 
-    TLegend *leg_mass_dijets_3jet4jet_2groups = new TLegend(0.14, 0.65, 0.35, 0.88);
+    TLegend *leg_mass_dijets_3jet4jet_2groups = new TLegend(0.17, 0.65, 0.35, 0.88);
     leg_mass_dijets_3jet4jet_2groups->SetFillColor(kWhite);
     leg_mass_dijets_3jet4jet_2groups->SetLineColor(kWhite);
-    leg_mass_dijets_3jet4jet_2groups->AddEntry(mass_dijets_antikt_3jet4jet_2groups_compare, "ak_{T}", "L");
 
-    qcd_efficiency_mass_3jet4jet_2groups[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass_3jet4jet_2groups[1][i_pt] = (double)total_dijets_events[1]*mass_dijets_antikt_2groups_scale;
+    qcd_efficiency_mass_3jet4jet_2groups[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_mass_3jet4jet_2groups[3][i_pt] = (double)total_dijets_events[3]*mass_dijets_antikt_2groups_scale;
 
     for (int B = 0; B < n_betas; B++) {
 
@@ -3204,7 +3816,7 @@ int main(int argc, char* argv[]){
       mass_dijets_manual_3jet4jet_2groups_compare->SetMarkerColor(colorlist[B]);
       mass_dijets_manual_3jet4jet_2groups_compare->SetLineColor(colorlist[B]);
 
-      qcd_efficiency_mass_3jet4jet_2groups[B+2][i_pt] = (double)total_dijets_events[B+2]*mass_dijets_manual_2groups_scale;
+      qcd_efficiency_mass_3jet4jet_2groups[B][i_pt] = (double)total_dijets_events[B]*mass_dijets_manual_2groups_scale;
 
       mass_dijets_manual_3jet4jet_2groups_compare->Draw("box SAMES");
       leg_mass_dijets_3jet4jet_2groups->AddEntry(mass_dijets_manual_3jet4jet_2groups_compare, "#beta = " + (TString)ss.str(), "L");
@@ -3216,11 +3828,12 @@ int main(int argc, char* argv[]){
     line2->Draw("SAMES");
     line3->Draw("SAMES");
     line4->Draw("SAMES");
+    leg_mass_dijets_3jet4jet_2groups->AddEntry(mass_dijets_antikt_3jet4jet_2groups_compare, "ak_{T}", "L");
 
     mass_dijets_antikt_3jet4jet_2groups_compare->SetMaximum(1.2*max_val_mass_dijets_3jet4jet_2groups);
     leg_mass_dijets_3jet4jet_2groups->Draw("SAMES");
     mass_dijets_3jet4jet_2groups_compare->Write();
-    mass_dijets_3jet4jet_2groups_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_dijets_3jet4jet_2groups_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *minmass_ttbar_2jet3jet_2groups_compare = new TCanvas("minmass_ttbar_2jet3jet_2groups_compare", "minmass_ttbar_2jet3jet_2groups_compare", 600, 600);
@@ -3229,17 +3842,16 @@ int main(int argc, char* argv[]){
     double minmass_ttbar_antikt_2jet3jet_2groups_compare_scale = (double)1/nEvent;
     minmass_ttbar_antikt_2jet3jet_2groups_compare->Scale(minmass_ttbar_antikt_2jet3jet_2groups_compare_scale);
     minmass_ttbar_antikt_2jet3jet_2groups_compare->SetMarkerColor(kBlack);
-    minmass_ttbar_antikt_2jet3jet_2groups_compare->SetTitle("3-jet/4-jet min minmass comparison (p_{T} > " + (TString)ss_pt.str() + ")");
-    minmass_ttbar_antikt_2jet3jet_2groups_compare->GetXaxis()->SetTitle("3-jet minmass");
-    minmass_ttbar_antikt_2jet3jet_2groups_compare->GetYaxis()->SetTitle("4-jet min minmass");
+    minmass_ttbar_antikt_2jet3jet_2groups_compare->SetTitle("2-jet/3-jet minmass comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    minmass_ttbar_antikt_2jet3jet_2groups_compare->GetXaxis()->SetTitle("2-jet mass");
+    minmass_ttbar_antikt_2jet3jet_2groups_compare->GetYaxis()->SetTitle("3-jet minmass");
     minmass_ttbar_antikt_2jet3jet_2groups_compare->SetMinimum(0.0);
     minmass_ttbar_antikt_2jet3jet_2groups_compare->Draw("box");
     double max_val_minmass_ttbar_2jet3jet_2groups = minmass_ttbar_antikt_2jet3jet_2groups_compare->GetMaximum();
 
-    TLegend *leg_minmass_ttbar_2jet3jet_2groups = new TLegend(0.14, 0.65, 0.35, 0.88);
+    TLegend *leg_minmass_ttbar_2jet3jet_2groups = new TLegend(0.17, 0.65, 0.35, 0.88);
     leg_minmass_ttbar_2jet3jet_2groups->SetFillColor(kWhite);
     leg_minmass_ttbar_2jet3jet_2groups->SetLineColor(kWhite);
-    leg_minmass_ttbar_2jet3jet_2groups->AddEntry(minmass_ttbar_antikt_2jet3jet_2groups_compare, "ak_{T}", "L");
 
     for (int B = 0; B < n_betas; B++) {
 
@@ -3270,7 +3882,7 @@ int main(int argc, char* argv[]){
     line5->SetY1(0);
     line5->SetY2(200);
     line5->SetLineColor(kRed);
-    line5->SetLineWidth(3);
+    line5->SetLineWidth(4);
     line5->SetLineStyle(7);
     line5->Draw("SAMES");
 
@@ -3280,14 +3892,35 @@ int main(int argc, char* argv[]){
     line6->SetX1(0);
     line6->SetX2(200);
     line6->SetLineColor(kRed);
-    line6->SetLineWidth(3);
+    line6->SetLineWidth(4);
     line6->SetLineStyle(7);
     line6->Draw("SAMES");
+
+    TLine *line7 = new TLine();
+    line7->SetX1(100);
+    line7->SetVertical(true);
+    line7->SetY1(0);
+    line7->SetY2(200);
+    line7->SetLineColor(kRed);
+    line7->SetLineWidth(4);
+    line7->SetLineStyle(7);
+    line7->Draw("SAMES");
+
+    TLine *line8 = new TLine();
+    line8->SetY1(100);
+    line8->SetHorizontal(true);
+    line8->SetX1(0);
+    line8->SetX2(200);
+    line8->SetLineColor(kRed);
+    line8->SetLineWidth(4);
+    line8->SetLineStyle(7);
+    line8->Draw("SAMES");
+    leg_minmass_ttbar_2jet3jet_2groups->AddEntry(minmass_ttbar_antikt_2jet3jet_2groups_compare, "ak_{T}", "L");
 
     minmass_ttbar_antikt_2jet3jet_2groups_compare->SetMaximum(1.2*max_val_minmass_ttbar_2jet3jet_2groups);
     leg_minmass_ttbar_2jet3jet_2groups->Draw("SAMES");
     minmass_ttbar_2jet3jet_2groups_compare->Write();
-    minmass_ttbar_2jet3jet_2groups_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_minmass_2jet3jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    minmass_ttbar_2jet3jet_2groups_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_minmass_2jet3jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *minmass_dijets_2jet3jet_2groups_compare = new TCanvas("minmass_dijets_2jet3jet_2groups_compare", "minmass_dijets_2jet3jet_2groups_compare", 600, 600);
@@ -3296,17 +3929,16 @@ int main(int argc, char* argv[]){
     double minmass_dijets_antikt_2jet3jet_2groups_compare_scale = (double)1/nEvent;
     minmass_dijets_antikt_2jet3jet_2groups_compare->Scale(minmass_dijets_antikt_2jet3jet_2groups_compare_scale);
     minmass_dijets_antikt_2jet3jet_2groups_compare->SetMarkerColor(kBlack);
-    minmass_dijets_antikt_2jet3jet_2groups_compare->SetTitle("3-jet/4-jet min minmass comparison (p_{T} > " + (TString)ss_pt.str() + ")");
-    minmass_dijets_antikt_2jet3jet_2groups_compare->GetXaxis()->SetTitle("3-jet minmass");
-    minmass_dijets_antikt_2jet3jet_2groups_compare->GetYaxis()->SetTitle("4-jet min minmass");
+    minmass_dijets_antikt_2jet3jet_2groups_compare->SetTitle("2-jet/3-jet minmass comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    minmass_dijets_antikt_2jet3jet_2groups_compare->GetXaxis()->SetTitle("2-jet mass");
+    minmass_dijets_antikt_2jet3jet_2groups_compare->GetYaxis()->SetTitle("3-jet minmass");
     minmass_dijets_antikt_2jet3jet_2groups_compare->SetMinimum(0.0);
     minmass_dijets_antikt_2jet3jet_2groups_compare->Draw("box");
     double max_val_minmass_dijets_2jet3jet_2groups = minmass_dijets_antikt_2jet3jet_2groups_compare->GetMaximum();
 
-    TLegend *leg_minmass_dijets_2jet3jet_2groups = new TLegend(0.14, 0.65, 0.35, 0.88);
+    TLegend *leg_minmass_dijets_2jet3jet_2groups = new TLegend(0.17, 0.65, 0.35, 0.88);
     leg_minmass_dijets_2jet3jet_2groups->SetFillColor(kWhite);
     leg_minmass_dijets_2jet3jet_2groups->SetLineColor(kWhite);
-    leg_minmass_dijets_2jet3jet_2groups->AddEntry(minmass_dijets_antikt_2jet3jet_2groups_compare, "ak_{T}", "L");
 
     for (int B = 0; B < n_betas; B++) {
 
@@ -3333,11 +3965,14 @@ int main(int argc, char* argv[]){
 
     line5->Draw("SAMES");
     line6->Draw("SAMES");
+    line7->Draw("SAMES");
+    line8->Draw("SAMES");
+    leg_minmass_dijets_2jet3jet_2groups->AddEntry(minmass_dijets_antikt_2jet3jet_2groups_compare, "ak_{T}", "L");
 
     minmass_dijets_antikt_2jet3jet_2groups_compare->SetMaximum(1.2*max_val_minmass_dijets_2jet3jet_2groups);
     leg_minmass_dijets_2jet3jet_2groups->Draw("SAMES");
     minmass_dijets_2jet3jet_2groups_compare->Write();
-    minmass_dijets_2jet3jet_2groups_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_minmass_2jet3jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    minmass_dijets_2jet3jet_2groups_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_minmass_2jet3jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_ttbar_3jet4jet_2groups_Wmasscut_compare = new TCanvas("mass_ttbar_3jet4jet_2groups_Wmasscut_compare", "mass_ttbar_3jet4jet_2groups_Wmasscut_compare", 600, 600);
@@ -3353,13 +3988,12 @@ int main(int argc, char* argv[]){
     mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare->Draw("box");
     double max_val_mass_ttbar_3jet4jet_2groups_Wmasscut = mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare->GetMaximum();
 
-    TLegend *leg_mass_ttbar_3jet4jet_2groups_Wmasscut = new TLegend(0.14, 0.65, 0.35, 0.88);
+    TLegend *leg_mass_ttbar_3jet4jet_2groups_Wmasscut = new TLegend(0.17, 0.65, 0.35, 0.88);
     leg_mass_ttbar_3jet4jet_2groups_Wmasscut->SetFillColor(kWhite);
     leg_mass_ttbar_3jet4jet_2groups_Wmasscut->SetLineColor(kWhite);
-    leg_mass_ttbar_3jet4jet_2groups_Wmasscut->AddEntry(mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare, "ak_{T}", "L");
 
-    top_efficiency_mass_3jet4jet_2groups_Wmasscut[0][i_pt] = mass_ttbar_antikt->Integral((double)160/500*mass_ttbar_antikt->GetNbinsX(), (double)240/500*mass_ttbar_antikt->GetNbinsX());
-    top_efficiency_mass_3jet4jet_2groups_Wmasscut[1][i_pt] = (double)total_ttbar_Wmasscut_events[1]*mass_ttbar_antikt_2groups_scale;
+    top_efficiency_mass_3jet4jet_2groups_Wmasscut[2][i_pt] = mass_ttbar_antikt->Integral((double)150/500*mass_ttbar_antikt->GetNbinsX(), (double)200/500*mass_ttbar_antikt->GetNbinsX());
+    top_efficiency_mass_3jet4jet_2groups_Wmasscut[3][i_pt] = (double)total_ttbar_Wmasscut_events[3]*mass_ttbar_antikt_2groups_scale;
 
     for (int B = 0; B < n_betas; B++) {
 
@@ -3378,7 +4012,7 @@ int main(int argc, char* argv[]){
       mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare->SetMarkerColor(colorlist[B]);
       mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare->SetLineColor(colorlist[B]);
 
-      top_efficiency_mass_3jet4jet_2groups_Wmasscut[B+2][i_pt] = (double)total_ttbar_Wmasscut_events[B+2]*mass_ttbar_manual_2groups_scale;
+      top_efficiency_mass_3jet4jet_2groups_Wmasscut[B][i_pt] = (double)total_ttbar_Wmasscut_events[B]*mass_ttbar_manual_2groups_scale;
 
       mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare->Draw("box SAMES");
       leg_mass_ttbar_3jet4jet_2groups_Wmasscut->AddEntry(mass_ttbar_manual_3jet4jet_2groups_Wmasscut_compare, "#beta = " + (TString)ss.str(), "L");
@@ -3390,11 +4024,12 @@ int main(int argc, char* argv[]){
     line2->Draw("SAMES");
     line3->Draw("SAMES");
     line4->Draw("SAMES");
+    leg_mass_ttbar_3jet4jet_2groups_Wmasscut->AddEntry(mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare, "ak_{T}", "L");
 
     mass_ttbar_antikt_3jet4jet_2groups_Wmasscut_compare->SetMaximum(1.2*max_val_mass_ttbar_3jet4jet_2groups_Wmasscut);
     leg_mass_ttbar_3jet4jet_2groups_Wmasscut->Draw("SAMES");
     mass_ttbar_3jet4jet_2groups_Wmasscut_compare->Write();
-    mass_ttbar_3jet4jet_2groups_Wmasscut_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_mass_3jet4jet_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_ttbar_3jet4jet_2groups_Wmasscut_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_mass_3jet4jet_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *mass_dijets_3jet4jet_2groups_Wmasscut_compare = new TCanvas("mass_dijets_3jet4jet_2groups_Wmasscut_compare", "mass_dijets_3jet4jet_2groups_Wmasscut_compare", 600, 600);
@@ -3410,13 +4045,12 @@ int main(int argc, char* argv[]){
     mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare->Draw("box");
     double max_val_mass_dijets_3jet4jet_2groups_Wmasscut = mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare->GetMaximum();
 
-    TLegend *leg_mass_dijets_3jet4jet_2groups_Wmasscut = new TLegend(0.14, 0.65, 0.35, 0.88);
+    TLegend *leg_mass_dijets_3jet4jet_2groups_Wmasscut = new TLegend(0.17, 0.65, 0.35, 0.88);
     leg_mass_dijets_3jet4jet_2groups_Wmasscut->SetFillColor(kWhite);
     leg_mass_dijets_3jet4jet_2groups_Wmasscut->SetLineColor(kWhite);
-    leg_mass_dijets_3jet4jet_2groups_Wmasscut->AddEntry(mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare, "ak_{T}", "L");
 
-    qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[0][i_pt] = mass_dijets_antikt->Integral((double)160/500*mass_dijets_antikt->GetNbinsX(), (double)240/500*mass_dijets_antikt->GetNbinsX());
-    qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[1][i_pt] = (double)total_dijets_Wmasscut_events[1]*mass_dijets_antikt_2groups_scale;
+    qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[2][i_pt] = mass_dijets_antikt->Integral((double)150/500*mass_dijets_antikt->GetNbinsX(), (double)200/500*mass_dijets_antikt->GetNbinsX());
+    qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[3][i_pt] = (double)total_dijets_Wmasscut_events[3]*mass_dijets_antikt_2groups_scale;
 
     for (int B = 0; B < n_betas; B++) {
 
@@ -3435,7 +4069,7 @@ int main(int argc, char* argv[]){
       mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare->SetMarkerColor(colorlist[B]);
       mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare->SetLineColor(colorlist[B]);
 
-      qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[B+2][i_pt] = (double)total_dijets_Wmasscut_events[B+2]*mass_dijets_manual_2groups_scale;
+      qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[B][i_pt] = (double)total_dijets_Wmasscut_events[B]*mass_dijets_manual_2groups_scale;
 
       mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare->Draw("box SAMES");
       leg_mass_dijets_3jet4jet_2groups_Wmasscut->AddEntry(mass_dijets_manual_3jet4jet_2groups_Wmasscut_compare, "#beta = " + (TString)ss.str(), "L");
@@ -3447,11 +4081,419 @@ int main(int argc, char* argv[]){
     line2->Draw("SAMES");
     line3->Draw("SAMES");
     line4->Draw("SAMES");
+    leg_mass_dijets_3jet4jet_2groups_Wmasscut->AddEntry(mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare, "ak_{T}", "L");
 
     mass_dijets_antikt_3jet4jet_2groups_Wmasscut_compare->SetMaximum(1.2*max_val_mass_dijets_3jet4jet_2groups_Wmasscut);
     leg_mass_dijets_3jet4jet_2groups_Wmasscut->Draw("SAMES");
     mass_dijets_3jet4jet_2groups_Wmasscut_compare->Write();
-    mass_dijets_3jet4jet_2groups_Wmasscut_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_mass_3jet4jet_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    mass_dijets_3jet4jet_2groups_Wmasscut_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_mass_3jet4jet_2groups_Wmasscut_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *massdiff_3jet4jet_2groups_ttbar_compare = new TCanvas("massdiff_3jet4jet_2groups_ttbar_compare", "massdiff_3jet4jet_2groups Comparison", 600, 600);
+    massdiff_3jet4jet_2groups_ttbar_compare->cd();
+
+    // double massdiff_ttbar_antikt_3jet4jet_2groups_scale = 1/total_ttbar_jets;
+    double massdiff_ttbar_antikt_3jet4jet_2groups_scale = 1/massdiff_ttbar_antikt_3jet4jet_2groups->Integral(0, massdiff_ttbar_antikt_3jet4jet_2groups->GetNbinsX() + 1);
+    massdiff_ttbar_antikt_3jet4jet_2groups->Scale(massdiff_ttbar_antikt_3jet4jet_2groups_scale);
+    massdiff_ttbar_antikt_3jet4jet_2groups->SetTitle("massdiff of ttbar jets");
+    massdiff_ttbar_antikt_3jet4jet_2groups->SetLineColor(8);
+    massdiff_ttbar_antikt_3jet4jet_2groups->Draw();
+
+    TLegend *leg_massdiff_3jet4jet_2groups_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_massdiff_3jet4jet_2groups_ttbar->SetLineColor(0);
+    leg_massdiff_3jet4jet_2groups_ttbar->SetFillColor(0);
+    double max_val_ttbar_2groups_massdiff = massdiff_ttbar_antikt_3jet4jet_2groups->GetMaximum();
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* massdiff_ttbar_manual_3jet4jet_2groups = (TH1*)massdiff_ttbar_manual_3jet4jet_2groups_hists.At(B);
+      double massdiff_ttbar_manual_3jet4jet_2groups_scale = 1/massdiff_ttbar_manual_3jet4jet_2groups->Integral(0, massdiff_ttbar_manual_3jet4jet_2groups->GetNbinsX() + 1);
+
+      // double massdiff_ttbar_manual_3jet4jet_2groups_scale = 1/total_ttbar_jets;
+      massdiff_ttbar_manual_3jet4jet_2groups->Scale(massdiff_ttbar_manual_3jet4jet_2groups_scale);
+      massdiff_ttbar_manual_3jet4jet_2groups->SetStats(0);
+      massdiff_ttbar_manual_3jet4jet_2groups->SetLineColor(colorlist[B]);
+      // if (B == 0) massdiff_ttbar_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 1) massdiff_ttbar_manual_3jet4jet_2groups->SetLineColor(kBlue);
+      // if (B == 2) massdiff_ttbar_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 3) massdiff_ttbar_manual_3jet4jet_2groups->SetLineColor(kBlue);
+
+      massdiff_ttbar_manual_3jet4jet_2groups->Draw("SAMES");
+      leg_massdiff_3jet4jet_2groups_ttbar->AddEntry(massdiff_ttbar_manual_3jet4jet_2groups, "#beta = " + (TString)ss.str());
+      massdiff_ttbar_manual_3jet4jet_2groups->Write();
+
+      if (massdiff_ttbar_manual_3jet4jet_2groups->GetMaximum() > max_val_ttbar_2groups_massdiff) {
+        max_val_ttbar_2groups_massdiff = massdiff_ttbar_manual_3jet4jet_2groups->GetMaximum();
+        // massdiff_ttbar_manual_3jet4jet_2groups->SetMaximum(1.2*max_val_ttbar_2groups);
+        // massdiff_3jet4jet_2groups_ttbar_compare->Update();
+      }
+    }
+    leg_massdiff_3jet4jet_2groups_ttbar->AddEntry(massdiff_ttbar_antikt_3jet4jet_2groups, "ak_{T} (2 groups)", "L");
+
+    massdiff_ttbar_antikt_3jet4jet_2groups->SetMaximum(1.2*max_val_ttbar_2groups_massdiff);
+    leg_massdiff_3jet4jet_2groups_ttbar->Draw();
+    massdiff_3jet4jet_2groups_ttbar_compare->Write();
+    massdiff_3jet4jet_2groups_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_massdiff_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *massdiff_3jet4jet_2groups_dijets_compare = new TCanvas("massdiff_3jet4jet_2groups_dijets_compare", "massdiff_3jet4jet_2groups Comparison", 600, 600);
+    massdiff_3jet4jet_2groups_dijets_compare->cd();
+
+    double massdiff_dijets_antikt_3jet4jet_2groups_scale = 1/massdiff_dijets_antikt_3jet4jet_2groups->Integral(0, massdiff_dijets_antikt_3jet4jet_2groups->GetNbinsX() + 1);
+    massdiff_dijets_antikt_3jet4jet_2groups->Scale(massdiff_dijets_antikt_3jet4jet_2groups_scale);
+    massdiff_dijets_antikt_3jet4jet_2groups->SetTitle("massdiff of QCD Jets");
+    massdiff_dijets_antikt_3jet4jet_2groups->SetLineColor(8);
+    massdiff_dijets_antikt_3jet4jet_2groups->Draw();
+
+    TLegend *leg_massdiff_3jet4jet_2groups_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_massdiff_3jet4jet_2groups_dijets->SetLineColor(0);
+    leg_massdiff_3jet4jet_2groups_dijets->SetFillColor(0);
+    // double max_val_dijets_2groups = (massdiff_dijets_antikt->GetMaximum() > massdiff_dijets_antikt_6jets->GetMaximum()) ? massdiff_dijets_antikt->GetMaximum() : massdiff_dijets_antikt_6jets->GetMaximum();
+    double max_val_dijets_2groups_massdiff = massdiff_ttbar_antikt_3jet4jet_2groups->GetMaximum();
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* massdiff_dijets_manual_3jet4jet_2groups = (TH1*)massdiff_dijets_manual_3jet4jet_2groups_hists.At(B);
+
+      double massdiff_dijets_manual_3jet4jet_2groups_scale = 1/massdiff_dijets_manual_3jet4jet_2groups->Integral(0, massdiff_dijets_manual_3jet4jet_2groups->GetNbinsX() + 1);
+      massdiff_dijets_manual_3jet4jet_2groups->Scale(massdiff_dijets_manual_3jet4jet_2groups_scale);
+      massdiff_dijets_manual_3jet4jet_2groups->SetStats(0);
+      massdiff_dijets_manual_3jet4jet_2groups->SetLineColor(colorlist[B]);
+      // if (B == 0) massdiff_dijets_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 1) massdiff_dijets_manual_3jet4jet_2groups->SetLineColor(kBlue);
+      // if (B == 2) massdiff_dijets_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 3) massdiff_dijets_manual_3jet4jet_2groups->SetLineColor(kBlue);
+
+      massdiff_dijets_manual_3jet4jet_2groups->Draw("SAMES");
+      leg_massdiff_3jet4jet_2groups_dijets->AddEntry(massdiff_dijets_manual_3jet4jet_2groups, "#beta = " + (TString)ss.str());
+      massdiff_dijets_manual_3jet4jet_2groups->Write();
+
+
+      if (massdiff_dijets_manual_3jet4jet_2groups->GetMaximum() > max_val_dijets_2groups_massdiff) {
+        max_val_dijets_2groups_massdiff = massdiff_dijets_manual_3jet4jet_2groups->GetMaximum();
+        // massdiff_dijets_manual_3jet4jet_2groups->SetMaximum(1.2*max_val_dijets_2groups);
+        // massdiff_3jet4jet_2groups_dijets_compare->Update();
+      }
+    }
+    leg_massdiff_3jet4jet_2groups_dijets->AddEntry(massdiff_dijets_antikt_3jet4jet_2groups, "ak_{T} (2 groups)", "L");
+
+    massdiff_dijets_antikt_3jet4jet_2groups->SetMaximum(1.2*max_val_dijets_2groups_massdiff);
+    leg_massdiff_3jet4jet_2groups_dijets->Draw();
+    massdiff_3jet4jet_2groups_dijets_compare->Write();
+    massdiff_3jet4jet_2groups_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_massdiff_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *massratio_3jet4jet_2groups_ttbar_compare = new TCanvas("massratio_3jet4jet_2groups_ttbar_compare", "massratio_3jet4jet_2groups Comparison", 600, 600);
+    massratio_3jet4jet_2groups_ttbar_compare->cd();
+
+    // double massratio_ttbar_antikt_3jet4jet_2groups_scale = 1/total_ttbar_jets;
+    double massratio_ttbar_antikt_3jet4jet_2groups_scale = 1/massratio_ttbar_antikt_3jet4jet_2groups->Integral(0, massratio_ttbar_antikt_3jet4jet_2groups->GetNbinsX() + 1);
+    massratio_ttbar_antikt_3jet4jet_2groups->Scale(massratio_ttbar_antikt_3jet4jet_2groups_scale);
+    massratio_ttbar_antikt_3jet4jet_2groups->SetTitle("massratio of ttbar jets");
+    massratio_ttbar_antikt_3jet4jet_2groups->SetLineColor(8);
+    massratio_ttbar_antikt_3jet4jet_2groups->Draw();
+
+    TLegend *leg_massratio_3jet4jet_2groups_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_massratio_3jet4jet_2groups_ttbar->SetLineColor(0);
+    leg_massratio_3jet4jet_2groups_ttbar->SetFillColor(0);
+    double max_val_ttbar_2groups_massratio = massratio_ttbar_antikt_3jet4jet_2groups->GetMaximum();
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* massratio_ttbar_manual_3jet4jet_2groups = (TH1*)massratio_ttbar_manual_3jet4jet_2groups_hists.At(B);
+      double massratio_ttbar_manual_3jet4jet_2groups_scale = 1/massratio_ttbar_manual_3jet4jet_2groups->Integral(0, massratio_ttbar_manual_3jet4jet_2groups->GetNbinsX() + 1);
+
+      // double massratio_ttbar_manual_3jet4jet_2groups_scale = 1/total_ttbar_jets;
+      massratio_ttbar_manual_3jet4jet_2groups->Scale(massratio_ttbar_manual_3jet4jet_2groups_scale);
+      massratio_ttbar_manual_3jet4jet_2groups->SetStats(0);
+      massratio_ttbar_manual_3jet4jet_2groups->SetLineColor(colorlist[B]);
+      // if (B == 0) massratio_ttbar_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 1) massratio_ttbar_manual_3jet4jet_2groups->SetLineColor(kBlue);
+      // if (B == 2) massratio_ttbar_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 3) massratio_ttbar_manual_3jet4jet_2groups->SetLineColor(kBlue);
+
+      massratio_ttbar_manual_3jet4jet_2groups->Draw("SAMES");
+      leg_massratio_3jet4jet_2groups_ttbar->AddEntry(massratio_ttbar_manual_3jet4jet_2groups, "#beta = " + (TString)ss.str());
+      massratio_ttbar_manual_3jet4jet_2groups->Write();
+
+      if (massratio_ttbar_manual_3jet4jet_2groups->GetMaximum() > max_val_ttbar_2groups_massratio) {
+        max_val_ttbar_2groups_massratio = massratio_ttbar_manual_3jet4jet_2groups->GetMaximum();
+        // massratio_ttbar_manual_3jet4jet_2groups->SetMaximum(1.2*max_val_ttbar_2groups);
+        // massratio_3jet4jet_2groups_ttbar_compare->Update();
+      }
+    }
+    leg_massratio_3jet4jet_2groups_ttbar->AddEntry(massratio_ttbar_antikt_3jet4jet_2groups, "ak_{T} (2 groups)", "L");
+
+    massratio_ttbar_antikt_3jet4jet_2groups->SetMaximum(1.2*max_val_ttbar_2groups_massratio);
+    leg_massratio_3jet4jet_2groups_ttbar->Draw();
+    massratio_3jet4jet_2groups_ttbar_compare->Write();
+    massratio_3jet4jet_2groups_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_massratio_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *massratio_3jet4jet_2groups_dijets_compare = new TCanvas("massratio_3jet4jet_2groups_dijets_compare", "massratio_3jet4jet_2groups Comparison", 600, 600);
+    massratio_3jet4jet_2groups_dijets_compare->cd();
+
+    double massratio_dijets_antikt_3jet4jet_2groups_scale = 1/massratio_dijets_antikt_3jet4jet_2groups->Integral(0, massratio_dijets_antikt_3jet4jet_2groups->GetNbinsX() + 1);
+    massratio_dijets_antikt_3jet4jet_2groups->Scale(massratio_dijets_antikt_3jet4jet_2groups_scale);
+    massratio_dijets_antikt_3jet4jet_2groups->SetTitle("massratio of QCD Jets");
+    massratio_dijets_antikt_3jet4jet_2groups->SetLineColor(8);
+    massratio_dijets_antikt_3jet4jet_2groups->Draw();
+
+    TLegend *leg_massratio_3jet4jet_2groups_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_massratio_3jet4jet_2groups_dijets->SetLineColor(0);
+    leg_massratio_3jet4jet_2groups_dijets->SetFillColor(0);
+    // double max_val_dijets_2groups = (massratio_dijets_antikt->GetMaximum() > massratio_dijets_antikt_6jets->GetMaximum()) ? massratio_dijets_antikt->GetMaximum() : massratio_dijets_antikt_6jets->GetMaximum();
+    double max_val_dijets_2groups_massratio = massratio_ttbar_antikt_3jet4jet_2groups->GetMaximum();
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* massratio_dijets_manual_3jet4jet_2groups = (TH1*)massratio_dijets_manual_3jet4jet_2groups_hists.At(B);
+
+      double massratio_dijets_manual_3jet4jet_2groups_scale = 1/massratio_dijets_manual_3jet4jet_2groups->Integral(0, massratio_dijets_manual_3jet4jet_2groups->GetNbinsX() + 1);
+      massratio_dijets_manual_3jet4jet_2groups->Scale(massratio_dijets_manual_3jet4jet_2groups_scale);
+      massratio_dijets_manual_3jet4jet_2groups->SetStats(0);
+      massratio_dijets_manual_3jet4jet_2groups->SetLineColor(colorlist[B]);
+      // if (B == 0) massratio_dijets_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 1) massratio_dijets_manual_3jet4jet_2groups->SetLineColor(kBlue);
+      // if (B == 2) massratio_dijets_manual_3jet4jet_2groups->SetLineColor(kRed);
+      // if (B == 3) massratio_dijets_manual_3jet4jet_2groups->SetLineColor(kBlue);
+
+      massratio_dijets_manual_3jet4jet_2groups->Draw("SAMES");
+      leg_massratio_3jet4jet_2groups_dijets->AddEntry(massratio_dijets_manual_3jet4jet_2groups, "#beta = " + (TString)ss.str());
+      massratio_dijets_manual_3jet4jet_2groups->Write();
+
+
+      if (massratio_dijets_manual_3jet4jet_2groups->GetMaximum() > max_val_dijets_2groups_massratio) {
+        max_val_dijets_2groups_massratio = massratio_dijets_manual_3jet4jet_2groups->GetMaximum();
+        // massratio_dijets_manual_3jet4jet_2groups->SetMaximum(1.2*max_val_dijets_2groups);
+        // massratio_3jet4jet_2groups_dijets_compare->Update();
+      }
+    }
+    leg_massratio_3jet4jet_2groups_dijets->AddEntry(massratio_dijets_antikt_3jet4jet_2groups, "ak_{T} (2 groups)", "L");
+
+    massratio_dijets_antikt_3jet4jet_2groups->SetMaximum(1.2*max_val_dijets_2groups_massratio);
+    leg_massratio_3jet4jet_2groups_dijets->Draw();
+    massratio_3jet4jet_2groups_dijets_compare->Write();
+    massratio_3jet4jet_2groups_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_massratio_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *massratio_3jet4jet_2groups_improved_ttbar_compare = new TCanvas("massratio_3jet4jet_2groups_improved_ttbar_compare", "massratio_3jet4jet_2groups_improved Comparison", 600, 600);
+    massratio_3jet4jet_2groups_improved_ttbar_compare->cd();
+
+    // double massratio_ttbar_antikt_3jet4jet_2groups_improved_scale = 1/total_ttbar_jets;
+    double massratio_ttbar_antikt_3jet4jet_2groups_improved_scale = 1/massratio_ttbar_antikt_3jet4jet_2groups_improved->Integral(0, massratio_ttbar_antikt_3jet4jet_2groups_improved->GetNbinsX() + 1);
+    massratio_ttbar_antikt_3jet4jet_2groups_improved->Scale(massratio_ttbar_antikt_3jet4jet_2groups_improved_scale);
+    massratio_ttbar_antikt_3jet4jet_2groups_improved->SetTitle("massratio of ttbar jets");
+    massratio_ttbar_antikt_3jet4jet_2groups_improved->SetLineColor(8);
+    massratio_ttbar_antikt_3jet4jet_2groups_improved->Draw();
+
+    TLegend *leg_massratio_3jet4jet_2groups_improved_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_massratio_3jet4jet_2groups_improved_ttbar->SetLineColor(0);
+    leg_massratio_3jet4jet_2groups_improved_ttbar->SetFillColor(0);
+    double max_val_ttbar_2groups_improved_massratio = massratio_ttbar_antikt_3jet4jet_2groups_improved->GetMaximum();
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* massratio_ttbar_manual_3jet4jet_2groups_improved = (TH1*)massratio_ttbar_manual_3jet4jet_2groups_improved_hists.At(B);
+      double massratio_ttbar_manual_3jet4jet_2groups_improved_scale = 1/massratio_ttbar_manual_3jet4jet_2groups_improved->Integral(0, massratio_ttbar_manual_3jet4jet_2groups_improved->GetNbinsX() + 1);
+
+      // double massratio_ttbar_manual_3jet4jet_2groups_improved_scale = 1/total_ttbar_jets;
+      massratio_ttbar_manual_3jet4jet_2groups_improved->Scale(massratio_ttbar_manual_3jet4jet_2groups_improved_scale);
+      massratio_ttbar_manual_3jet4jet_2groups_improved->SetStats(0);
+      massratio_ttbar_manual_3jet4jet_2groups_improved->SetLineColor(colorlist[B]);
+      // if (B == 0) massratio_ttbar_manual_3jet4jet_2groups_improved->SetLineColor(kRed);
+      // if (B == 1) massratio_ttbar_manual_3jet4jet_2groups_improved->SetLineColor(kBlue);
+      // if (B == 2) massratio_ttbar_manual_3jet4jet_2groups_improved->SetLineColor(kRed);
+      // if (B == 3) massratio_ttbar_manual_3jet4jet_2groups_improved->SetLineColor(kBlue);
+
+      massratio_ttbar_manual_3jet4jet_2groups_improved->Draw("SAMES");
+      leg_massratio_3jet4jet_2groups_improved_ttbar->AddEntry(massratio_ttbar_manual_3jet4jet_2groups_improved, "#beta = " + (TString)ss.str());
+      massratio_ttbar_manual_3jet4jet_2groups_improved->Write();
+
+      if (massratio_ttbar_manual_3jet4jet_2groups_improved->GetMaximum() > max_val_ttbar_2groups_improved_massratio) {
+        max_val_ttbar_2groups_improved_massratio = massratio_ttbar_manual_3jet4jet_2groups_improved->GetMaximum();
+        // massratio_ttbar_manual_3jet4jet_2groups_improved->SetMaximum(1.2*max_val_ttbar_2groups_improved);
+        // massratio_3jet4jet_2groups_improved_ttbar_compare->Update();
+      }
+    }
+    leg_massratio_3jet4jet_2groups_improved_ttbar->AddEntry(massratio_ttbar_antikt_3jet4jet_2groups_improved, "ak_{T} (2 groups)", "L");
+
+    massratio_ttbar_antikt_3jet4jet_2groups_improved->SetMaximum(1.2*max_val_ttbar_2groups_improved_massratio);
+    leg_massratio_3jet4jet_2groups_improved_ttbar->Draw();
+    massratio_3jet4jet_2groups_improved_ttbar_compare->Write();
+    massratio_3jet4jet_2groups_improved_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_massratio_3jet4jet_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *massratio_3jet4jet_2groups_improved_dijets_compare = new TCanvas("massratio_3jet4jet_2groups_improved_dijets_compare", "massratio_3jet4jet_2groups_improved Comparison", 600, 600);
+    massratio_3jet4jet_2groups_improved_dijets_compare->cd();
+
+    double massratio_dijets_antikt_3jet4jet_2groups_improved_scale = 1/massratio_dijets_antikt_3jet4jet_2groups_improved->Integral(0, massratio_dijets_antikt_3jet4jet_2groups_improved->GetNbinsX() + 1);
+    massratio_dijets_antikt_3jet4jet_2groups_improved->Scale(massratio_dijets_antikt_3jet4jet_2groups_improved_scale);
+    massratio_dijets_antikt_3jet4jet_2groups_improved->SetTitle("massratio of QCD Jets");
+    massratio_dijets_antikt_3jet4jet_2groups_improved->SetLineColor(8);
+    massratio_dijets_antikt_3jet4jet_2groups_improved->Draw();
+
+    TLegend *leg_massratio_3jet4jet_2groups_improved_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_massratio_3jet4jet_2groups_improved_dijets->SetLineColor(0);
+    leg_massratio_3jet4jet_2groups_improved_dijets->SetFillColor(0);
+    // double max_val_dijets_2groups_improved = (massratio_dijets_antikt->GetMaximum() > massratio_dijets_antikt_6jets->GetMaximum()) ? massratio_dijets_antikt->GetMaximum() : massratio_dijets_antikt_6jets->GetMaximum();
+    double max_val_dijets_2groups_improved_massratio = massratio_ttbar_antikt_3jet4jet_2groups_improved->GetMaximum();
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* massratio_dijets_manual_3jet4jet_2groups_improved = (TH1*)massratio_dijets_manual_3jet4jet_2groups_improved_hists.At(B);
+
+      double massratio_dijets_manual_3jet4jet_2groups_improved_scale = 1/massratio_dijets_manual_3jet4jet_2groups_improved->Integral(0, massratio_dijets_manual_3jet4jet_2groups_improved->GetNbinsX() + 1);
+      massratio_dijets_manual_3jet4jet_2groups_improved->Scale(massratio_dijets_manual_3jet4jet_2groups_improved_scale);
+      massratio_dijets_manual_3jet4jet_2groups_improved->SetStats(0);
+      massratio_dijets_manual_3jet4jet_2groups_improved->SetLineColor(colorlist[B]);
+      // if (B == 0) massratio_dijets_manual_3jet4jet_2groups_improved->SetLineColor(kRed);
+      // if (B == 1) massratio_dijets_manual_3jet4jet_2groups_improved->SetLineColor(kBlue);
+      // if (B == 2) massratio_dijets_manual_3jet4jet_2groups_improved->SetLineColor(kRed);
+      // if (B == 3) massratio_dijets_manual_3jet4jet_2groups_improved->SetLineColor(kBlue);
+
+      massratio_dijets_manual_3jet4jet_2groups_improved->Draw("SAMES");
+      leg_massratio_3jet4jet_2groups_improved_dijets->AddEntry(massratio_dijets_manual_3jet4jet_2groups_improved, "#beta = " + (TString)ss.str());
+      massratio_dijets_manual_3jet4jet_2groups_improved->Write();
+
+
+      if (massratio_dijets_manual_3jet4jet_2groups_improved->GetMaximum() > max_val_dijets_2groups_improved_massratio) {
+        max_val_dijets_2groups_improved_massratio = massratio_dijets_manual_3jet4jet_2groups_improved->GetMaximum();
+        // massratio_dijets_manual_3jet4jet_2groups_improved->SetMaximum(1.2*max_val_dijets_2groups_improved);
+        // massratio_3jet4jet_2groups_improved_dijets_compare->Update();
+      }
+    }
+    leg_massratio_3jet4jet_2groups_improved_dijets->AddEntry(massratio_dijets_antikt_3jet4jet_2groups_improved, "ak_{T} (2 groups)", "L");
+
+    massratio_dijets_antikt_3jet4jet_2groups_improved->SetMaximum(1.2*max_val_dijets_2groups_improved_massratio);
+    leg_massratio_3jet4jet_2groups_improved_dijets->Draw();
+    massratio_3jet4jet_2groups_improved_dijets_compare->Write();
+    massratio_3jet4jet_2groups_improved_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_massratio_3jet4jet_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+
+    TCanvas *tau32_ttbar_3jet4jet_2groups_compare = new TCanvas("tau32_ttbar_3jet4jet_2groups_compare", "tau32_ttbar_3jet4jet_2groups_compare", 600, 600);
+    tau32_ttbar_3jet4jet_2groups_compare->cd();
+
+    double tau32_ttbar_antikt_3jet4jet_2groups_compare_scale = (double)1/nEvent;
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->Scale(tau32_ttbar_antikt_3jet4jet_2groups_compare_scale);
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->SetMarkerColor(kBlack);
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->GetXaxis()->SetTitle("3-jet tau32");
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->GetYaxis()->SetTitle("4-jet min tau32");
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->SetMinimum(0.0);
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->Draw("box");
+    double max_val_tau32_ttbar_3jet4jet_2groups = tau32_ttbar_antikt_3jet4jet_2groups_compare->GetMaximum();
+
+    TLegend *leg_tau32_ttbar_3jet4jet_2groups = new TLegend(0.17, 0.65, 0.35, 0.88);
+    leg_tau32_ttbar_3jet4jet_2groups->SetFillColor(kWhite);
+    leg_tau32_ttbar_3jet4jet_2groups->SetLineColor(kWhite);
+
+    for (int B = 0; B < n_betas; B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* tau32_ttbar_manual_3jet4jet_2groups_compare = (TH1*)tau32_ttbar_manual_3jet4jet_2groups_compare_hists.At(B);
+      double tau32_ttbar_manual_3jet4jet_2groups_compare_scale = (double)1/nEvent;
+      tau32_ttbar_manual_3jet4jet_2groups_compare->Scale(tau32_ttbar_manual_3jet4jet_2groups_compare_scale);
+
+      tau32_ttbar_manual_3jet4jet_2groups_compare->SetStats(0);
+      tau32_ttbar_manual_3jet4jet_2groups_compare->Write();
+
+      tau32_ttbar_manual_3jet4jet_2groups_compare->SetMarkerColor(colorlist[B]);
+      tau32_ttbar_manual_3jet4jet_2groups_compare->SetLineColor(colorlist[B]);
+
+      tau32_ttbar_manual_3jet4jet_2groups_compare->Draw("box SAMES");
+      leg_tau32_ttbar_3jet4jet_2groups->AddEntry(tau32_ttbar_manual_3jet4jet_2groups_compare, "#beta = " + (TString)ss.str(), "L");
+
+      if (tau32_ttbar_manual_3jet4jet_2groups_compare->GetMaximum() > max_val_tau32_ttbar_3jet4jet_2groups) max_val_tau32_ttbar_3jet4jet_2groups = tau32_ttbar_manual_3jet4jet_2groups_compare->GetMaximum();
+    }
+    leg_tau32_ttbar_3jet4jet_2groups->AddEntry(tau32_ttbar_antikt_3jet4jet_2groups_compare, "ak_{T}", "L");
+
+    tau32_ttbar_antikt_3jet4jet_2groups_compare->SetMaximum(1.2*max_val_tau32_ttbar_3jet4jet_2groups);
+    leg_tau32_ttbar_3jet4jet_2groups->Draw("SAMES");
+    tau32_ttbar_3jet4jet_2groups_compare->Write();
+    tau32_ttbar_3jet4jet_2groups_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_tau32_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *tau32_dijets_3jet4jet_2groups_compare = new TCanvas("tau32_dijets_3jet4jet_2groups_compare", "tau32_dijets_3jet4jet_2groups_compare", 600, 600);
+    tau32_dijets_3jet4jet_2groups_compare->cd();
+
+    double tau32_dijets_antikt_3jet4jet_2groups_compare_scale = (double)1/nEvent;
+    tau32_dijets_antikt_3jet4jet_2groups_compare->Scale(tau32_dijets_antikt_3jet4jet_2groups_compare_scale);
+    tau32_dijets_antikt_3jet4jet_2groups_compare->SetMarkerColor(kBlack);
+    tau32_dijets_antikt_3jet4jet_2groups_compare->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    tau32_dijets_antikt_3jet4jet_2groups_compare->GetXaxis()->SetTitle("3-jet tau32");
+    tau32_dijets_antikt_3jet4jet_2groups_compare->GetYaxis()->SetTitle("4-jet min tau32");
+    tau32_dijets_antikt_3jet4jet_2groups_compare->SetMinimum(0.0);
+    tau32_dijets_antikt_3jet4jet_2groups_compare->Draw("box");
+    double max_val_tau32_dijets_3jet4jet_2groups = tau32_dijets_antikt_3jet4jet_2groups_compare->GetMaximum();
+
+    TLegend *leg_tau32_dijets_3jet4jet_2groups = new TLegend(0.17, 0.65, 0.35, 0.88);
+    leg_tau32_dijets_3jet4jet_2groups->SetFillColor(kWhite);
+    leg_tau32_dijets_3jet4jet_2groups->SetLineColor(kWhite);
+
+    for (int B = 0; B < n_betas; B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* tau32_dijets_manual_3jet4jet_2groups_compare = (TH1*)tau32_dijets_manual_3jet4jet_2groups_compare_hists.At(B);
+      double tau32_dijets_manual_3jet4jet_2groups_compare_scale = (double)1/nEvent;
+      tau32_dijets_manual_3jet4jet_2groups_compare->Scale(tau32_dijets_manual_3jet4jet_2groups_compare_scale);
+
+      tau32_dijets_manual_3jet4jet_2groups_compare->SetStats(0);
+      tau32_dijets_manual_3jet4jet_2groups_compare->Write();
+
+      tau32_dijets_manual_3jet4jet_2groups_compare->SetMarkerColor(colorlist[B]);
+      tau32_dijets_manual_3jet4jet_2groups_compare->SetLineColor(colorlist[B]);
+
+      tau32_dijets_manual_3jet4jet_2groups_compare->Draw("box SAMES");
+      leg_tau32_dijets_3jet4jet_2groups->AddEntry(tau32_dijets_manual_3jet4jet_2groups_compare, "#beta = " + (TString)ss.str(), "L");
+
+      if (tau32_dijets_manual_3jet4jet_2groups_compare->GetMaximum() > max_val_tau32_dijets_3jet4jet_2groups) max_val_tau32_dijets_3jet4jet_2groups = tau32_dijets_manual_3jet4jet_2groups_compare->GetMaximum();
+    }
+    leg_tau32_dijets_3jet4jet_2groups->AddEntry(tau32_dijets_antikt_3jet4jet_2groups_compare, "ak_{T}", "L");
+
+    tau32_dijets_antikt_3jet4jet_2groups_compare->SetMaximum(1.2*max_val_tau32_dijets_3jet4jet_2groups);
+    leg_tau32_dijets_3jet4jet_2groups->Draw("SAMES");
+    tau32_dijets_3jet4jet_2groups_compare->Write();
+    tau32_dijets_3jet4jet_2groups_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_tau32_3jet4jet_2groups_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *volatility_ttbar_compare = new TCanvas("volatility_ttbar_compare", "volatility Comparison", 600, 600);
@@ -3497,7 +4539,7 @@ int main(int argc, char* argv[]){
 
     leg_volatility_ttbar->Draw();
     volatility_ttbar_compare->Write();
-    volatility_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_volatility_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    volatility_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_volatility_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *volatility_dijets_compare = new TCanvas("volatility_dijets_compare", "volatility Comparison", 600, 600);
@@ -3544,7 +4586,340 @@ int main(int argc, char* argv[]){
 
     leg_volatility_dijets->Draw();
     volatility_dijets_compare->Write();
-    volatility_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_volatility_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    volatility_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_volatility_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *avgdistance_ttbar_compare = new TCanvas("avgdistance_ttbar_compare", "avgdistance Comparison", 600, 600);
+    avgdistance_ttbar_compare->cd();
+
+    double avgdistance_ttbar_antikt_scale = (double)1/nEvent;
+    avgdistance_ttbar_antikt->Scale(avgdistance_ttbar_antikt_scale);
+    avgdistance_ttbar_antikt->SetMarkerColor(kBlack);
+    avgdistance_ttbar_antikt->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    avgdistance_ttbar_antikt->GetXaxis()->SetTitle("3-jet tau32");
+    avgdistance_ttbar_antikt->GetYaxis()->SetTitle("4-jet min tau32");
+    avgdistance_ttbar_antikt->SetMinimum(0.0);
+    avgdistance_ttbar_antikt->Draw("box");
+    double max_val_ttbar_avgdistance = avgdistance_ttbar_antikt->GetMaximum();
+
+    TLegend *leg_avgdistance_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_avgdistance_ttbar->SetLineColor(0);
+    leg_avgdistance_ttbar->SetFillColor(0);
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* avgdistance_ttbar_manual = (TH1*)avgdistance_ttbar_manual_hists.At(B);
+      double avgdistance_ttbar_manual_scale = 1/avgdistance_ttbar_manual->Integral(0, avgdistance_ttbar_manual->GetNbinsX() + 1);
+      avgdistance_ttbar_manual->Scale(avgdistance_ttbar_manual_scale);
+
+      avgdistance_ttbar_manual->SetStats(0);
+
+      avgdistance_ttbar_manual->SetLineColor(colorlist[B]);
+        // if (B == 0) rawavgdistance_ttbar_manual_2jets->SetLineColor(kRed);
+        // if (B == 1) rawavgdistance_ttbar_manual_2jets->SetLineColor(kBlue);
+        // if (B == 2) rawavgdistance_ttbar_manual_2jets->SetLineColor(kRed);
+        // if (B == 3) rawavgdistance_ttbar_manual_2jets->SetLineColor(kBlue);
+
+      if (B == 0) avgdistance_ttbar_manual->Draw();
+      else avgdistance_ttbar_manual->Draw("SAMES");
+      leg_avgdistance_ttbar->AddEntry(avgdistance_ttbar_manual, "#beta = " + (TString)ss.str());
+      avgdistance_ttbar_manual->Write();
+
+      if (avgdistance_ttbar_manual->GetMaximum() > max_val_ttbar_avgdistance) {
+        max_val_ttbar_avgdistance = avgdistance_ttbar_manual->GetMaximum();
+          // avgdistance_ttbar_manual->SetMaximum(1.2*max_val_ttbar_avgdistance);
+          // avgdistance_ttbar_compare->Update();
+      }
+    }
+    leg_avgdistance_ttbar->AddEntry(avgdistance_ttbar_antikt, "ak_{T}", "L");
+
+    avgdistance_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_avgdistance);
+    leg_avgdistance_ttbar->Draw();
+    avgdistance_ttbar_compare->Write();
+    avgdistance_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_avgdistance_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *avgdistance_dijets_compare = new TCanvas("avgdistance_dijets_compare", "avgdistance Comparison", 600, 600);
+    avgdistance_dijets_compare->cd();
+
+    double avgdistance_dijets_antikt_scale = (double)1/nEvent;
+    avgdistance_dijets_antikt->Scale(avgdistance_dijets_antikt_scale);
+    avgdistance_dijets_antikt->SetMarkerColor(kBlack);
+    avgdistance_dijets_antikt->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    avgdistance_dijets_antikt->GetXaxis()->SetTitle("3-jet tau32");
+    avgdistance_dijets_antikt->GetYaxis()->SetTitle("4-jet min tau32");
+    avgdistance_dijets_antikt->SetMinimum(0.0);
+    avgdistance_dijets_antikt->Draw("box");
+    double max_val_dijets_avgdistance = avgdistance_dijets_antikt->GetMaximum();
+
+    TLegend *leg_avgdistance_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_avgdistance_dijets->SetLineColor(0);
+    leg_avgdistance_dijets->SetFillColor(0);
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* avgdistance_dijets_manual = (TH1*)avgdistance_dijets_manual_hists.At(B);
+
+      double avgdistance_dijets_manual_scale = 1/avgdistance_dijets_manual->Integral(0, avgdistance_dijets_manual->GetNbinsX() + 1);
+      avgdistance_dijets_manual->Scale(avgdistance_dijets_manual_scale);
+
+      avgdistance_dijets_manual->SetStats(0);
+
+      avgdistance_dijets_manual->SetLineColor(colorlist[B]);
+        // if (B == 0) avgdistance_dijets_manual->SetLineColor(kRed);
+        // if (B == 1) avgdistance_dijets_manual->SetLineColor(kBlue);
+        // if (B == 2) avgdistance_dijets_manual->SetLineColor(kRed);
+        // if (B == 3) avgdistance_dijets_manual->SetLineColor(kBlue);
+
+      if (B == 0) avgdistance_dijets_manual->Draw();
+      else avgdistance_dijets_manual->Draw("SAMES");
+      leg_avgdistance_dijets->AddEntry(avgdistance_dijets_manual, "#beta = " + (TString)ss.str());
+      avgdistance_dijets_manual->Write();
+
+      if (avgdistance_dijets_manual->GetMaximum() > max_val_dijets_avgdistance) {
+        max_val_dijets_avgdistance = avgdistance_dijets_manual->GetMaximum();
+          // avgdistance_dijets_manual->SetMaximum(1.2*max_val_dijets);
+          // avgdistance_dijets_compare->Update();
+      }
+    }
+    leg_avgdistance_dijets->AddEntry(avgdistance_dijets_antikt, "ak_{T}", "L");
+
+    avgdistance_dijets_antikt->SetMaximum(1.2*max_val_dijets_avgdistance);
+    leg_avgdistance_dijets->Draw();
+    avgdistance_dijets_compare->Write();
+    avgdistance_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_avgdistance_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *avgdistance_improved_ttbar_compare = new TCanvas("avgdistance_improved_ttbar_compare", "avgdistance_improved Comparison", 600, 600);
+    avgdistance_improved_ttbar_compare->cd();
+
+    double avgdistance_improved_ttbar_antikt_scale = (double)1/nEvent;
+    avgdistance_improved_ttbar_antikt->Scale(avgdistance_improved_ttbar_antikt_scale);
+    avgdistance_improved_ttbar_antikt->SetMarkerColor(kBlack);
+    avgdistance_improved_ttbar_antikt->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    avgdistance_improved_ttbar_antikt->GetXaxis()->SetTitle("3-jet tau32");
+    avgdistance_improved_ttbar_antikt->GetYaxis()->SetTitle("4-jet min tau32");
+    avgdistance_improved_ttbar_antikt->SetMinimum(0.0);
+    avgdistance_improved_ttbar_antikt->Draw("box");
+    double max_val_ttbar_avgdistance_improved = avgdistance_improved_ttbar_antikt->GetMaximum();
+
+    TLegend *leg_avgdistance_improved_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_avgdistance_improved_ttbar->SetLineColor(0);
+    leg_avgdistance_improved_ttbar->SetFillColor(0);
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* avgdistance_improved_ttbar_manual = (TH1*)avgdistance_improved_ttbar_manual_hists.At(B);
+      double avgdistance_improved_ttbar_manual_scale = 1/avgdistance_improved_ttbar_manual->Integral(0, avgdistance_improved_ttbar_manual->GetNbinsX() + 1);
+      avgdistance_improved_ttbar_manual->Scale(avgdistance_improved_ttbar_manual_scale);
+
+      avgdistance_improved_ttbar_manual->SetStats(0);
+
+      avgdistance_improved_ttbar_manual->SetLineColor(colorlist[B]);
+        // if (B == 0) rawavgdistance_improved_ttbar_manual_2jets->SetLineColor(kRed);
+        // if (B == 1) rawavgdistance_improved_ttbar_manual_2jets->SetLineColor(kBlue);
+        // if (B == 2) rawavgdistance_improved_ttbar_manual_2jets->SetLineColor(kRed);
+        // if (B == 3) rawavgdistance_improved_ttbar_manual_2jets->SetLineColor(kBlue);
+
+      if (B == 0) avgdistance_improved_ttbar_manual->Draw();
+      else avgdistance_improved_ttbar_manual->Draw("SAMES");
+      leg_avgdistance_improved_ttbar->AddEntry(avgdistance_improved_ttbar_manual, "#beta = " + (TString)ss.str());
+      avgdistance_improved_ttbar_manual->Write();
+
+      if (avgdistance_improved_ttbar_manual->GetMaximum() > max_val_ttbar_avgdistance_improved) {
+        max_val_ttbar_avgdistance_improved = avgdistance_improved_ttbar_manual->GetMaximum();
+          // avgdistance_improved_ttbar_manual->SetMaximum(1.2*max_val_ttbar_avgdistance_improved);
+          // avgdistance_improved_ttbar_compare->Update();
+      }
+    }
+    leg_avgdistance_improved_ttbar->AddEntry(avgdistance_improved_ttbar_antikt, "ak_{T}", "L");
+
+    avgdistance_improved_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_avgdistance_improved);
+    leg_avgdistance_improved_ttbar->Draw();
+    avgdistance_improved_ttbar_compare->Write();
+    avgdistance_improved_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_avgdistance_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *avgdistance_improved_dijets_compare = new TCanvas("avgdistance_improved_dijets_compare", "avgdistance_improved Comparison", 600, 600);
+    avgdistance_improved_dijets_compare->cd();
+
+    double avgdistance_improved_dijets_antikt_scale = (double)1/nEvent;
+    avgdistance_improved_dijets_antikt->Scale(avgdistance_improved_dijets_antikt_scale);
+    avgdistance_improved_dijets_antikt->SetMarkerColor(kBlack);
+    avgdistance_improved_dijets_antikt->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    avgdistance_improved_dijets_antikt->GetXaxis()->SetTitle("3-jet tau32");
+    avgdistance_improved_dijets_antikt->GetYaxis()->SetTitle("4-jet min tau32");
+    avgdistance_improved_dijets_antikt->SetMinimum(0.0);
+    avgdistance_improved_dijets_antikt->Draw("box");
+    double max_val_dijets_avgdistance_improved = avgdistance_improved_dijets_antikt->GetMaximum();
+
+    TLegend *leg_avgdistance_improved_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_avgdistance_improved_dijets->SetLineColor(0);
+    leg_avgdistance_improved_dijets->SetFillColor(0);
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* avgdistance_improved_dijets_manual = (TH1*)avgdistance_improved_dijets_manual_hists.At(B);
+
+      double avgdistance_improved_dijets_manual_scale = 1/avgdistance_improved_dijets_manual->Integral(0, avgdistance_improved_dijets_manual->GetNbinsX() + 1);
+      avgdistance_improved_dijets_manual->Scale(avgdistance_improved_dijets_manual_scale);
+
+      avgdistance_improved_dijets_manual->SetStats(0);
+
+      avgdistance_improved_dijets_manual->SetLineColor(colorlist[B]);
+        // if (B == 0) avgdistance_improved_dijets_manual->SetLineColor(kRed);
+        // if (B == 1) avgdistance_improved_dijets_manual->SetLineColor(kBlue);
+        // if (B == 2) avgdistance_improved_dijets_manual->SetLineColor(kRed);
+        // if (B == 3) avgdistance_improved_dijets_manual->SetLineColor(kBlue);
+
+      if (B == 0) avgdistance_improved_dijets_manual->Draw();
+      else avgdistance_improved_dijets_manual->Draw("SAMES");
+      leg_avgdistance_improved_dijets->AddEntry(avgdistance_improved_dijets_manual, "#beta = " + (TString)ss.str());
+      avgdistance_improved_dijets_manual->Write();
+
+      if (avgdistance_improved_dijets_manual->GetMaximum() > max_val_dijets_avgdistance_improved) {
+        max_val_dijets_avgdistance_improved = avgdistance_improved_dijets_manual->GetMaximum();
+          // avgdistance_improved_dijets_manual->SetMaximum(1.2*max_val_dijets);
+          // avgdistance_improved_dijets_compare->Update();
+      }
+    }
+    leg_avgdistance_improved_dijets->AddEntry(avgdistance_improved_dijets_antikt, "ak_{T}", "L");
+
+    avgdistance_improved_dijets_antikt->SetMaximum(1.2*max_val_dijets_avgdistance_improved);
+    leg_avgdistance_improved_dijets->Draw();
+    avgdistance_improved_dijets_compare->Write();
+    avgdistance_improved_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_avgdistance_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *helicityangle_ttbar_compare = new TCanvas("helicityangle_ttbar_compare", "helicityangle Comparison", 600, 600);
+    helicityangle_ttbar_compare->cd();
+
+    double helicityangle_ttbar_antikt_scale = (double)1/nEvent;
+    helicityangle_ttbar_antikt->Scale(helicityangle_ttbar_antikt_scale);
+    helicityangle_ttbar_antikt->SetMarkerColor(kBlack);
+    helicityangle_ttbar_antikt->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    helicityangle_ttbar_antikt->GetXaxis()->SetTitle("3-jet tau32");
+    helicityangle_ttbar_antikt->GetYaxis()->SetTitle("4-jet min tau32");
+    helicityangle_ttbar_antikt->SetMinimum(0.0);
+    helicityangle_ttbar_antikt->Draw("box");
+    double max_val_ttbar_helicityangle = helicityangle_ttbar_antikt->GetMaximum();
+
+    TLegend *leg_helicityangle_ttbar = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_helicityangle_ttbar->SetLineColor(0);
+    leg_helicityangle_ttbar->SetFillColor(0);
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* helicityangle_ttbar_manual = (TH1*)helicityangle_ttbar_manual_hists.At(B);
+      double helicityangle_ttbar_manual_scale = 1/helicityangle_ttbar_manual->Integral(0, helicityangle_ttbar_manual->GetNbinsX() + 1);
+      helicityangle_ttbar_manual->Scale(helicityangle_ttbar_manual_scale);
+
+      helicityangle_ttbar_manual->SetStats(0);
+
+      helicityangle_ttbar_manual->SetLineColor(colorlist[B]);
+        // if (B == 0) rawhelicityangle_ttbar_manual_2jets->SetLineColor(kRed);
+        // if (B == 1) rawhelicityangle_ttbar_manual_2jets->SetLineColor(kBlue);
+        // if (B == 2) rawhelicityangle_ttbar_manual_2jets->SetLineColor(kRed);
+        // if (B == 3) rawhelicityangle_ttbar_manual_2jets->SetLineColor(kBlue);
+
+      if (B == 0) helicityangle_ttbar_manual->Draw();
+      else helicityangle_ttbar_manual->Draw("SAMES");
+      leg_helicityangle_ttbar->AddEntry(helicityangle_ttbar_manual, "#beta = " + (TString)ss.str());
+      helicityangle_ttbar_manual->Write();
+
+      if (helicityangle_ttbar_manual->GetMaximum() > max_val_ttbar_helicityangle) {
+        max_val_ttbar_helicityangle = helicityangle_ttbar_manual->GetMaximum();
+          // helicityangle_ttbar_manual->SetMaximum(1.2*max_val_ttbar_helicityangle);
+          // helicityangle_ttbar_compare->Update();
+      }
+    }
+    leg_helicityangle_ttbar->AddEntry(helicityangle_ttbar_antikt, "ak_{T}", "L");
+
+    helicityangle_ttbar_antikt->SetMaximum(1.2*max_val_ttbar_helicityangle);
+    leg_helicityangle_ttbar->Draw();
+    helicityangle_ttbar_compare->Write();
+    helicityangle_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_helicityangle_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+
+
+    TCanvas *helicityangle_dijets_compare = new TCanvas("helicityangle_dijets_compare", "helicityangle Comparison", 600, 600);
+    helicityangle_dijets_compare->cd();
+
+    double helicityangle_dijets_antikt_scale = (double)1/nEvent;
+    helicityangle_dijets_antikt->Scale(helicityangle_dijets_antikt_scale);
+    helicityangle_dijets_antikt->SetMarkerColor(kBlack);
+    helicityangle_dijets_antikt->SetTitle("3-jet/4-jet min tau32 comparison (p_{T} > " + (TString)ss_pt.str() + ")");
+    helicityangle_dijets_antikt->GetXaxis()->SetTitle("3-jet tau32");
+    helicityangle_dijets_antikt->GetYaxis()->SetTitle("4-jet min tau32");
+    helicityangle_dijets_antikt->SetMinimum(0.0);
+    helicityangle_dijets_antikt->Draw("box");
+    double max_val_dijets_helicityangle = helicityangle_dijets_antikt->GetMaximum();
+
+    TLegend *leg_helicityangle_dijets = new TLegend(0.7, 0.7, 0.88, 0.88);
+    leg_helicityangle_dijets->SetLineColor(0);
+    leg_helicityangle_dijets->SetFillColor(0);
+
+    for (int B = 0; B < betalist.size(); B++) {
+
+      double beta = betalist[B];
+
+      ostringstream ss;
+      ss << beta;
+
+      TH1* helicityangle_dijets_manual = (TH1*)helicityangle_dijets_manual_hists.At(B);
+
+      double helicityangle_dijets_manual_scale = 1/helicityangle_dijets_manual->Integral(0, helicityangle_dijets_manual->GetNbinsX() + 1);
+      helicityangle_dijets_manual->Scale(helicityangle_dijets_manual_scale);
+
+      helicityangle_dijets_manual->SetStats(0);
+
+      helicityangle_dijets_manual->SetLineColor(colorlist[B]);
+        // if (B == 0) helicityangle_dijets_manual->SetLineColor(kRed);
+        // if (B == 1) helicityangle_dijets_manual->SetLineColor(kBlue);
+        // if (B == 2) helicityangle_dijets_manual->SetLineColor(kRed);
+        // if (B == 3) helicityangle_dijets_manual->SetLineColor(kBlue);
+
+      if (B == 0) helicityangle_dijets_manual->Draw();
+      else helicityangle_dijets_manual->Draw("SAMES");
+      leg_helicityangle_dijets->AddEntry(helicityangle_dijets_manual, "#beta = " + (TString)ss.str());
+      helicityangle_dijets_manual->Write();
+
+      if (helicityangle_dijets_manual->GetMaximum() > max_val_dijets_helicityangle) {
+        max_val_dijets_helicityangle = helicityangle_dijets_manual->GetMaximum();
+          // helicityangle_dijets_manual->SetMaximum(1.2*max_val_dijets);
+          // helicityangle_dijets_compare->Update();
+      }
+    }
+    leg_helicityangle_dijets->AddEntry(helicityangle_dijets_antikt, "ak_{T}", "L");
+
+    helicityangle_dijets_antikt->SetMaximum(1.2*max_val_dijets_helicityangle);
+    leg_helicityangle_dijets->Draw();
+    helicityangle_dijets_compare->Write();
+    helicityangle_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_helicityangle_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *max_njet_ttbar_compare = new TCanvas("max_njet_ttbar_compare", "max_njet Comparison", 600, 600);
@@ -3595,7 +4970,7 @@ int main(int argc, char* argv[]){
 
     leg_max_njet_ttbar->Draw();
     max_njet_ttbar_compare->Write();
-    max_njet_ttbar_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_max_njet_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    max_njet_ttbar_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_max_njet_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *max_njet_dijets_compare = new TCanvas("max_njet_dijets_compare", "max_njet Comparison", 600, 600);
     max_njet_dijets_compare->cd();
@@ -3641,7 +5016,7 @@ int main(int argc, char* argv[]){
 
     leg_max_njet_dijets->Draw();
     max_njet_dijets_compare->Write();
-    max_njet_dijets_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_max_njet_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    max_njet_dijets_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_max_njet_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
     TCanvas *max_njet_ttbar_2groups_improved_compare = new TCanvas("max_njet_ttbar_2groups_improved_compare", "max_njet Comparison", 600, 600);
@@ -3688,7 +5063,7 @@ int main(int argc, char* argv[]){
 
     leg_max_njet_2groups_improved_ttbar->Draw();
     max_njet_ttbar_2groups_improved_compare->Write();
-    max_njet_ttbar_2groups_improved_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_ttbar_max_njet_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    max_njet_ttbar_2groups_improved_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ttbar_max_njet_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
     TCanvas *max_njet_dijets_2groups_improved_compare = new TCanvas("max_njet_dijets_2groups_improved_compare", "max_njet Comparison", 600, 600);
     max_njet_dijets_2groups_improved_compare->cd();
@@ -3731,7 +5106,7 @@ int main(int argc, char* argv[]){
 
     leg_max_njet_2groups_improved_dijets->Draw();
     max_njet_dijets_2groups_improved_compare->Write();
-    max_njet_dijets_2groups_improved_compare->Print("ttbarstudy_2x3_plots/ttbarstudy_dijets_max_njet_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
+    max_njet_dijets_2groups_improved_compare->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_dijets_max_njet_2groups_improved_compare_pt" + (TString)ss_pt.str() + ".eps", "eps");
 
 
   // cout << endl;
@@ -3775,8 +5150,8 @@ int main(int argc, char* argv[]){
   TCanvas *ROC_compare_total_big = new TCanvas("ROC_compare_total_big", "ROC Curve Comparison", 600, 600);
   ROC_compare_total_big->cd();
   ROC_compare_total_big->SetLogy();
-  TMultiGraph *ROC_multigraph_total_big = new TMultiGraph("ROC_multigraph_total_big", "ROC Comparison for #tau_{3}/#tau_{2} (240 < p_{T} < 800)");
-  TLegend *leg_ROC_total_big = new TLegend(0.14, 0.6, 0.4, 0.88);
+  TMultiGraph *ROC_multigraph_total_big = new TMultiGraph("ROC_multigraph_total_big", "ROC Comparison for #tau_{3}/#tau_{2} (200 < p_{T} < 800)");
+  TLegend *leg_ROC_total_big = new TLegend(0.17, 0.6, 0.4, 0.88);
   leg_ROC_total_big->SetLineColor(0);
   leg_ROC_total_big->SetFillColor(0);
 
@@ -3797,8 +5172,8 @@ int main(int argc, char* argv[]){
       // TCanvas *ROC_compare_total = new TCanvas("ROC_compare_total", "ROC Curve Comparison", 600, 600);
       // ROC_compare_total->cd();
       // ROC_compare_total->SetLogy();
-      // TMultiGraph *ROC_multigraph_total = new TMultiGraph("ROC_multigraph_total", "ROC Comparison for #tau_{3}/#tau_{2} (240 < p_{T} < 800, #beta = " + (TString)ss.str() + ")");
-      // TLegend *leg_ROC_total = new TLegend(0.14, 0.6, 0.4, 0.88);
+      // TMultiGraph *ROC_multigraph_total = new TMultiGraph("ROC_multigraph_total", "ROC Comparison for #tau_{3}/#tau_{2} (200 < p_{T} < 800, #beta = " + (TString)ss.str() + ")");
+      // TLegend *leg_ROC_total = new TLegend(0.17, 0.6, 0.4, 0.88);
       // leg_ROC_total->SetLineColor(0);
       // leg_ROC_total->SetFillColor(0);
 
@@ -3904,8 +5279,8 @@ int main(int argc, char* argv[]){
     int n_size_manual_2groups_total = tau32_ttbar_manual_2groups_total->GetSize() - 2;
     double integral_dijets_manual_2groups_total[n_size_manual_2groups_total], integral_ttbar_manual_2groups_total[n_size_manual_2groups_total];
     for (int i = 0; i < n_size_manual_2groups_total; i++) {
-      integral_ttbar_manual_2groups_total[i] = tau32_ttbar_manual_2groups_total->Integral(0,i)/total_total_ttbar_jets;
-      integral_dijets_manual_2groups_total[i] = tau32_dijets_manual_2groups_total->Integral(0,i)/total_total_dijets_jets;
+      integral_ttbar_manual_2groups_total[i] = tau32_ttbar_manual_2groups_total->Integral(0,i)/(total_total_ttbar_jets*2);
+      integral_dijets_manual_2groups_total[i] = tau32_dijets_manual_2groups_total->Integral(0,i)/(total_total_dijets_jets*2);
     }
     TGraph* ROC_tau32_manual_2groups_total = new TGraph(n_size_manual_2groups_total, integral_ttbar_manual_2groups_total, integral_dijets_manual_2groups_total);
     ROC_tau32_manual_2groups_total->GetXaxis()->SetLimits(0, 1);
@@ -3934,8 +5309,8 @@ int main(int argc, char* argv[]){
     int n_size_manual_2groups_improved_total = tau32_ttbar_manual_2groups_improved_total->GetSize() - 2;
     double integral_dijets_manual_2groups_improved_total[n_size_manual_2groups_improved_total], integral_ttbar_manual_2groups_improved_total[n_size_manual_2groups_improved_total];
     for (int i = 0; i < n_size_manual_2groups_improved_total; i++) {
-      integral_ttbar_manual_2groups_improved_total[i] = tau32_ttbar_manual_2groups_improved_total->Integral(0,i)/total_total_ttbar_jets;
-      integral_dijets_manual_2groups_improved_total[i] = tau32_dijets_manual_2groups_improved_total->Integral(0,i)/total_total_dijets_jets;
+      integral_ttbar_manual_2groups_improved_total[i] = tau32_ttbar_manual_2groups_improved_total->Integral(0,i)/(total_total_ttbar_jets*2);
+      integral_dijets_manual_2groups_improved_total[i] = tau32_dijets_manual_2groups_improved_total->Integral(0,i)/(total_total_dijets_jets*2);
     }
     TGraph* ROC_tau32_manual_2groups_improved_total = new TGraph(n_size_manual_2groups_improved_total, integral_ttbar_manual_2groups_improved_total, integral_dijets_manual_2groups_improved_total);
     ROC_tau32_manual_2groups_improved_total->GetXaxis()->SetLimits(0, 1);
@@ -3964,8 +5339,8 @@ int main(int argc, char* argv[]){
     int n_size_manual_2groups_bigcone_total = tau32_ttbar_manual_2groups_bigcone_total->GetSize() - 2;
     double integral_dijets_manual_2groups_bigcone_total[n_size_manual_2groups_bigcone_total], integral_ttbar_manual_2groups_bigcone_total[n_size_manual_2groups_bigcone_total];
     for (int i = 0; i < n_size_manual_2groups_bigcone_total; i++) {
-      integral_ttbar_manual_2groups_bigcone_total[i] = tau32_ttbar_manual_2groups_bigcone_total->Integral(0,i)/total_total_ttbar_jets;
-      integral_dijets_manual_2groups_bigcone_total[i] = tau32_dijets_manual_2groups_bigcone_total->Integral(0,i)/total_total_dijets_jets;
+      integral_ttbar_manual_2groups_bigcone_total[i] = tau32_ttbar_manual_2groups_bigcone_total->Integral(0,i)/(total_total_ttbar_jets*2);
+      integral_dijets_manual_2groups_bigcone_total[i] = tau32_dijets_manual_2groups_bigcone_total->Integral(0,i)/(total_total_dijets_jets*2);
     }
     TGraph* ROC_tau32_manual_2groups_bigcone_total = new TGraph(n_size_manual_2groups_bigcone_total, integral_ttbar_manual_2groups_bigcone_total, integral_dijets_manual_2groups_bigcone_total);
     ROC_tau32_manual_2groups_bigcone_total->GetXaxis()->SetLimits(0, 1);
@@ -3989,7 +5364,7 @@ int main(int argc, char* argv[]){
       // ROC_multigraph_total->GetYaxis()->SetTitleOffset(0.85);
       // leg_ROC_total->Draw();
       // ROC_compare_total->Write();
-      // ROC_compare_total->Print("ttbarstudy_2x3_plots/ttbarstudy_ROC_compare_totalpt_beta" + (TString)ss.str() + ".eps", "eps");
+      // ROC_compare_total->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ROC_compare_totalpt_beta" + (TString)ss.str() + ".eps", "eps");
   }
 
   ROC_multigraph_total_big->Draw("AL");
@@ -3998,7 +5373,7 @@ int main(int argc, char* argv[]){
   ROC_multigraph_total_big->GetYaxis()->SetTitleOffset(0.85);
   leg_ROC_total_big->Draw();
   ROC_compare_total_big->Write();
-  ROC_compare_total_big->Print("ttbarstudy_2x3_plots/ttbarstudy_ROC_compare_totalpt_big.eps", "eps");
+  ROC_compare_total_big->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ROC_compare_totalpt_big.eps", "eps");
 
   for (int B = 0; B < betalist.size(); B++) {
 
@@ -4010,8 +5385,8 @@ int main(int argc, char* argv[]){
     TCanvas *ROC_compare_total = new TCanvas("ROC_compare_total", "ROC Curve Comparison", 600, 600);
     ROC_compare_total->cd();
     ROC_compare_total->SetLogy();
-    TMultiGraph *ROC_multigraph_total = new TMultiGraph("ROC_multigraph_total", "ROC Comparison for #tau_{3}/#tau_{2} (240 < p_{T} < 800, 160 < m < 240, #beta = " + (TString)ss.str() + ")");
-    TLegend *leg_ROC_total = new TLegend(0.14, 0.6, 0.4, 0.88);
+    TMultiGraph *ROC_multigraph_total = new TMultiGraph("ROC_multigraph_total", "ROC Comparison for #tau_{3}/#tau_{2} (200 < p_{T} < 800, 150 < m < 200, #beta = " + (TString)ss.str() + ")");
+    TLegend *leg_ROC_total = new TLegend(0.17, 0.6, 0.4, 0.88);
     leg_ROC_total->SetLineColor(0);
     leg_ROC_total->SetFillColor(0);
 
@@ -4047,8 +5422,8 @@ int main(int argc, char* argv[]){
       // ROC_multigraph_total->Add(ROC_tau32_manual_6jet_total);
       // leg_ROC_total->AddEntry(ROC_tau32_manual_6jet_total, "6-jet", "L");
 
-    ROC_multigraph_total->Add(ROC_tau32_manual_total);
-    leg_ROC_total->AddEntry(ROC_tau32_manual_total, "6-jet imp", "L");
+    // ROC_multigraph_total->Add(ROC_tau32_manual_total);
+    // leg_ROC_total->AddEntry(ROC_tau32_manual_total, "6-jet imp", "L");
 
     ROC_multigraph_total->Add(ROC_tau32_manual_2groups_total);
     leg_ROC_total->AddEntry(ROC_tau32_manual_2groups_total, "2X3-jet", "L");
@@ -4072,11 +5447,12 @@ int main(int argc, char* argv[]){
     ROC_multigraph_total->GetYaxis()->SetTitleOffset(0.85);
     leg_ROC_total->Draw();
     ROC_compare_total->Write();
-    ROC_compare_total->Print("ttbarstudy_2x3_plots/ttbarstudy_ROC_compare_totalpt_beta" + (TString)ss.str() + ".eps", "eps");
+    ROC_compare_total->Print("ttbarstudy_2x3_onepassXcone_test_plots/ttbarstudy_ROC_compare_totalpt_beta" + (TString)ss.str() + ".eps", "eps");
 
   }
 
   TMultiGraph *top_efficiency_rawmass_biggraph = new TMultiGraph();
+  TMultiGraph *top_efficiency_rawmass_Wmasscut_biggraph = new TMultiGraph();
   TMultiGraph *top_efficiency_mass_biggraph = new TMultiGraph();
   TMultiGraph *top_efficiency_mass_2groups_biggraph = new TMultiGraph();
   TMultiGraph *top_efficiency_mass_2groups_improved_biggraph = new TMultiGraph();
@@ -4085,18 +5461,27 @@ int main(int argc, char* argv[]){
   TMultiGraph *top_efficiency_mass_3jet4jet_2groups_biggraph = new TMultiGraph();
   TMultiGraph *top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph = new TMultiGraph();
   TMultiGraph *top_efficiency_ratio_biggraph = new TMultiGraph();
+  TMultiGraph *top_efficiency_ratio_Wmasscut_biggraph = new TMultiGraph();
+  TMultiGraph *top_efficiency_ratio_2groups_biggraph = new TMultiGraph();
+  TMultiGraph *top_efficiency_ratio_2groups_Wmasscut_biggraph = new TMultiGraph();
 
-  TLegend *leg_top_rawmass = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass_2groups = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass_2groups_improved = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass_2groups_Wmasscut = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass_2groups_improved_Wmasscut = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass_3jet4jet_2groups = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_mass_3jet4jet_2groups_Wmasscut = new TLegend(0.14, 0.6, 0.42, 0.88);
-  TLegend *leg_top_ratio = new TLegend(0.14, 0.6, 0.42, 0.88);
+  TLegend *leg_top_rawmass = new TLegend(0.17, 0.6, 0.5, 0.86);
+  TLegend *leg_top_rawmass_Wmasscut = new TLegend(0.17, 0.6, 0.5, 0.86);
+  TLegend *leg_top_ratio = new TLegend(0.17, 0.6, 0.5, 0.86);
+  TLegend *leg_top_ratio_Wmasscut = new TLegend(0.17, 0.6, 0.5, 0.86);
+
+  TLegend *leg_top_mass = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_mass_2groups = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_mass_2groups_improved = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_mass_2groups_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_mass_2groups_improved_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_mass_3jet4jet_2groups = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_mass_3jet4jet_2groups_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_ratio_2groups = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_top_ratio_2groups_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
 
   leg_top_rawmass->SetFillColor(kWhite);
+  leg_top_rawmass_Wmasscut->SetFillColor(kWhite);
   leg_top_mass->SetFillColor(kWhite);
   leg_top_mass_2groups->SetFillColor(kWhite);
   leg_top_mass_2groups_improved->SetFillColor(kWhite);
@@ -4105,7 +5490,12 @@ int main(int argc, char* argv[]){
   leg_top_mass_3jet4jet_2groups->SetFillColor(kWhite);
   leg_top_mass_3jet4jet_2groups_Wmasscut->SetFillColor(kWhite);
   leg_top_ratio->SetFillColor(kWhite);
+  leg_top_ratio_Wmasscut->SetFillColor(kWhite);
+  leg_top_ratio_2groups->SetFillColor(kWhite);
+  leg_top_ratio_2groups_Wmasscut->SetFillColor(kWhite);
+
   leg_top_rawmass->SetLineColor(kWhite);
+  leg_top_rawmass_Wmasscut->SetLineColor(kWhite);
   leg_top_mass->SetLineColor(kWhite);
   leg_top_mass_2groups->SetLineColor(kWhite);
   leg_top_mass_2groups_improved->SetLineColor(kWhite);
@@ -4114,16 +5504,51 @@ int main(int argc, char* argv[]){
   leg_top_mass_3jet4jet_2groups->SetLineColor(kWhite);
   leg_top_mass_3jet4jet_2groups_Wmasscut->SetLineColor(kWhite);
   leg_top_ratio->SetLineColor(kWhite);
+  leg_top_ratio_Wmasscut->SetLineColor(kWhite);
+  leg_top_ratio_2groups->SetLineColor(kWhite);
+  leg_top_ratio_2groups_Wmasscut->SetLineColor(kWhite);
+
+  leg_top_rawmass->SetFillStyle(0);
+  leg_top_rawmass_Wmasscut->SetFillStyle(0);
+  leg_top_mass->SetFillStyle(0);
+  leg_top_mass_2groups->SetFillStyle(0);
+  leg_top_mass_2groups_improved->SetFillStyle(0);
+  leg_top_mass_2groups_Wmasscut->SetFillStyle(0);
+  leg_top_mass_2groups_improved_Wmasscut->SetFillStyle(0);
+  leg_top_mass_3jet4jet_2groups->SetFillStyle(0);
+  leg_top_mass_3jet4jet_2groups_Wmasscut->SetFillStyle(0);
+  leg_top_ratio->SetFillStyle(0);
+  leg_top_ratio_Wmasscut->SetFillStyle(0);
+  leg_top_ratio_2groups->SetFillStyle(0);
+  leg_top_ratio_2groups_Wmasscut->SetFillStyle(0);
+
+
+  leg_top_rawmass->SetTextSize(0.09);
+  leg_top_rawmass_Wmasscut->SetTextSize(0.09);
+  leg_top_mass->SetTextSize(0.09);
+  leg_top_mass_2groups->SetTextSize(0.09);
+  leg_top_mass_2groups_improved->SetTextSize(0.09);
+  leg_top_mass_2groups_Wmasscut->SetTextSize(0.09);
+  leg_top_mass_2groups_improved_Wmasscut->SetTextSize(0.09);
+  leg_top_mass_3jet4jet_2groups->SetTextSize(0.09);
+  leg_top_mass_3jet4jet_2groups_Wmasscut->SetTextSize(0.09);
+  leg_top_ratio->SetTextSize(0.09);
+  leg_top_ratio_Wmasscut->SetTextSize(0.09);
+  leg_top_ratio_2groups->SetTextSize(0.09);
+  leg_top_ratio_2groups_Wmasscut->SetTextSize(0.09);
+
 
   for (int i = 0; i < n_betas + 2; i++) {
 
     double beta;
-    if (i != 0 && i != 1) beta = betalist[i - 2];
+    // if (i != 0 && i != 1) beta = betalist[i - 2];
+    if (i == 0 || i == 1) beta = betalist[i];
 
     ostringstream ss;
     ss << beta;
 
     TGraph *top_efficiency_rawmass_graph = new TGraph(n_perps, ptlist, top_efficiency_rawmass[i]);
+    TGraph *top_efficiency_rawmass_Wmasscut_graph = new TGraph(n_perps, ptlist, top_efficiency_rawmass_Wmasscut[i]);
     TGraph *top_efficiency_mass_graph = new TGraph(n_perps, ptlist, top_efficiency_mass[i]);
     TGraph *top_efficiency_mass_2groups_graph = new TGraph(n_perps, ptlist, top_efficiency_mass_2groups[i]);
     TGraph *top_efficiency_mass_2groups_improved_graph = new TGraph(n_perps, ptlist, top_efficiency_mass_2groups_improved[i]);
@@ -4131,47 +5556,64 @@ int main(int argc, char* argv[]){
     TGraph *top_efficiency_mass_2groups_improved_Wmasscut_graph = new TGraph(n_perps, ptlist, top_efficiency_mass_2groups_improved_Wmasscut[i]);
     TGraph *top_efficiency_mass_3jet4jet_2groups_graph = new TGraph(n_perps, ptlist, top_efficiency_mass_3jet4jet_2groups[i]);
     TGraph *top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph = new TGraph(n_perps, ptlist, top_efficiency_mass_3jet4jet_2groups_Wmasscut[i]);
+    TGraph *top_efficiency_ratio_graph = new TGraph(n_perps, ptlist, top_efficiency_ratio[i]);
+    TGraph *top_efficiency_ratio_Wmasscut_graph = new TGraph(n_perps, ptlist, top_efficiency_ratio_Wmasscut[i]);
+    TGraph *top_efficiency_ratio_2groups_graph = new TGraph(n_perps, ptlist, top_efficiency_ratio_2groups[i]);
+    TGraph *top_efficiency_ratio_2groups_Wmasscut_graph = new TGraph(n_perps, ptlist, top_efficiency_ratio_2groups_Wmasscut[i]);
 
-    top_efficiency_rawmass_graph->SetLineWidth(3);
-    top_efficiency_mass_graph->SetLineWidth(3);
-    top_efficiency_mass_2groups_graph->SetLineWidth(3);
-    top_efficiency_mass_2groups_improved_graph->SetLineWidth(3);
-    top_efficiency_mass_2groups_Wmasscut_graph->SetLineWidth(3);
-    top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineWidth(3);
-    top_efficiency_mass_3jet4jet_2groups_graph->SetLineWidth(3);
-    top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineWidth(3);
+    top_efficiency_rawmass_graph->SetLineWidth(4);
+    top_efficiency_rawmass_Wmasscut_graph->SetLineWidth(4);
+    top_efficiency_mass_graph->SetLineWidth(4);
+    top_efficiency_mass_2groups_graph->SetLineWidth(4);
+    top_efficiency_mass_2groups_improved_graph->SetLineWidth(4);
+    top_efficiency_mass_2groups_Wmasscut_graph->SetLineWidth(4);
+    top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineWidth(4);
+    top_efficiency_mass_3jet4jet_2groups_graph->SetLineWidth(4);
+    top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineWidth(4);
+    top_efficiency_ratio_graph->SetLineWidth(4);
+    top_efficiency_ratio_Wmasscut_graph->SetLineWidth(4);
+    top_efficiency_ratio_2groups_graph->SetLineWidth(4);
+    top_efficiency_ratio_2groups_Wmasscut_graph->SetLineWidth(4);
 
-  // higgs_efficiencies_1jet_graph->SetMarkerStyle(3);
-  // higgs_efficiencies_1jet_graph->SetMarkerSize(2);
-  // top_efficiency_rawmass_graph->SetMarkerStyle(3);
-  // top_efficiency_rawmass_graph->SetMarkerSize(2);
-  // top_efficiency_mass_graph->SetMarkerStyle(3);
-  // top_efficiency_mass_graph->SetMarkerSize(2);
-  // top_efficiency_ratio_graph->SetMarkerStyle(3);
-  // top_efficiency_ratio_graph->SetMarkerSize(2);
-  // angulardiff_1jet_graph->SetMarkerStyle(3);
-  // angulardiff_1jet_graph->SetMarkerSize(2);
-  // angulardiff_prop_1jet_graph->SetMarkerStyle(3);
-  // angulardiff_prop_1jet_graph->SetMarkerSize(2);
-  // angulardiff_2jets_graph->SetMarkerStyle(3);
-  // angulardiff_2jets_graph->SetMarkerSize(2);
-  // jet_distance_diff_1jet_graph->SetMarkerStyle(3);
-  // jet_distance_diff_1jet_graph->SetMarkerSize(2);
+    if (i == 2) {
 
-    if (i == 0) {
-      leg_top_rawmass->AddEntry(top_efficiency_rawmass_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass->AddEntry(top_efficiency_mass_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass_2groups->AddEntry(top_efficiency_mass_2groups_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass_2groups_improved->AddEntry(top_efficiency_mass_2groups_improved_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass_2groups_Wmasscut->AddEntry(top_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass_2groups_improved_Wmasscut->AddEntry(top_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass_3jet4jet_2groups->AddEntry(top_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (2-jet)", "l");
-      leg_top_mass_3jet4jet_2groups_Wmasscut->AddEntry(top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (2-jet)", "l");
+      top_efficiency_rawmass_graph->SetLineStyle(7);
+      top_efficiency_rawmass_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_mass_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_improved_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_mass_3jet4jet_2groups_graph->SetLineStyle(7);
+      top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_ratio_graph->SetLineStyle(7);
+      top_efficiency_ratio_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_ratio_2groups_graph->SetLineStyle(7);
+      top_efficiency_ratio_2groups_Wmasscut_graph->SetLineStyle(7);
+
+      // leg_top_rawmass->AddEntry(top_efficiency_rawmass_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass->AddEntry(top_efficiency_mass_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass_2groups->AddEntry(top_efficiency_mass_2groups_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass_2groups_improved->AddEntry(top_efficiency_mass_2groups_improved_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass_2groups_Wmasscut->AddEntry(top_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass_2groups_improved_Wmasscut->AddEntry(top_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass_3jet4jet_2groups->AddEntry(top_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (Bst)", "l");
+      leg_top_mass_3jet4jet_2groups_Wmasscut->AddEntry(top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (Bst)", "l");
+      // leg_top_ratio->AddEntry(top_efficiency_ratio_graph, "ak_{T}", "l");
+      // leg_top_ratio_Wmasscut->AddEntry(top_efficiency_ratio_Wmasscut_graph, "ak_{T}", "l");
+      leg_top_ratio_2groups->AddEntry(top_efficiency_ratio_2groups_graph, "ak_{T} (Bst)", "l");
+      leg_top_ratio_2groups_Wmasscut->AddEntry(top_efficiency_ratio_2groups_Wmasscut_graph, "ak_{T} (Bst)", "l");
+
+      // top_efficiency_ratio_biggraph->Add(top_efficiency_ratio_graph);
+      // top_efficiency_ratio_2groups_biggraph->Add(top_efficiency_ratio_2groups_graph);
+      // top_efficiency_ratio_2groups_Wmasscut_biggraph->Add(top_efficiency_ratio_2groups_Wmasscut_graph);
+
     }
 
-    if (i == 1) {
+    if (i == 3) {
 
-      top_efficiency_rawmass_graph->SetLineColor(8);
+      top_efficiency_rawmass_graph->SetLineColor(kBlack);
+      top_efficiency_rawmass_Wmasscut_graph->SetLineColor(kBlack);
       top_efficiency_mass_graph->SetLineColor(8);
       top_efficiency_mass_2groups_graph->SetLineColor(8);
       top_efficiency_mass_2groups_improved_graph->SetLineColor(8);
@@ -4179,49 +5621,88 @@ int main(int argc, char* argv[]){
       top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineColor(8);
       top_efficiency_mass_3jet4jet_2groups_graph->SetLineColor(8);
       top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineColor(8);
+      top_efficiency_ratio_graph->SetLineColor(kBlack);
+      top_efficiency_ratio_Wmasscut_graph->SetLineColor(kBlack);
+      top_efficiency_ratio_2groups_graph->SetLineColor(8);
+      top_efficiency_ratio_2groups_Wmasscut_graph->SetLineColor(8);
 
-      leg_top_rawmass->AddEntry(top_efficiency_rawmass_graph, "ak_{T} (6-jet)", "l");
-      leg_top_mass->AddEntry(top_efficiency_mass_graph, "ak_{T} (6-jet)", "l");
-      leg_top_mass_2groups->AddEntry(top_efficiency_mass_2groups_graph, "ak_{T} (2 groups)", "l");
-      leg_top_mass_2groups_improved->AddEntry(top_efficiency_mass_2groups_improved_graph, "ak_{T} (6-jet)", "l");
-      leg_top_mass_2groups_Wmasscut->AddEntry(top_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (6-jet)", "l");
-      leg_top_mass_2groups_Wmasscut->AddEntry(top_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (6-jet)", "l");
-      leg_top_mass_3jet4jet_2groups->AddEntry(top_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (6-jet)", "l");
-      leg_top_mass_3jet4jet_2groups_Wmasscut->AddEntry(top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (6-jet)", "l");
+      top_efficiency_rawmass_graph->SetLineStyle(7);
+      top_efficiency_rawmass_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_mass_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_improved_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_mass_3jet4jet_2groups_graph->SetLineStyle(7);
+      top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_ratio_graph->SetLineStyle(7);
+      top_efficiency_ratio_Wmasscut_graph->SetLineStyle(7);
+      top_efficiency_ratio_2groups_graph->SetLineStyle(7);
+      top_efficiency_ratio_2groups_Wmasscut_graph->SetLineStyle(7);
+
+      leg_top_rawmass->AddEntry(top_efficiency_rawmass_graph, "ak_{T}", "l");
+      leg_top_rawmass_Wmasscut->AddEntry(top_efficiency_rawmass_Wmasscut_graph, "ak_{T}", "l");
+      leg_top_mass->AddEntry(top_efficiency_mass_graph, "ak_{T} (Res)", "l");
+      leg_top_mass_2groups->AddEntry(top_efficiency_mass_2groups_graph, "ak_{T} (Res)", "l");
+      leg_top_mass_2groups_improved->AddEntry(top_efficiency_mass_2groups_improved_graph, "ak_{T} (Res)", "l");
+      leg_top_mass_2groups_Wmasscut->AddEntry(top_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (Res)", "l");
+      leg_top_mass_2groups_improved_Wmasscut->AddEntry(top_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (Res)", "l");
+      leg_top_mass_3jet4jet_2groups->AddEntry(top_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (Res)", "l");
+      leg_top_mass_3jet4jet_2groups_Wmasscut->AddEntry(top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (Res)", "l");
+      leg_top_ratio->AddEntry(top_efficiency_ratio_graph, "ak_{T}", "l");
+      leg_top_ratio_Wmasscut->AddEntry(top_efficiency_ratio_Wmasscut_graph, "ak_{T}", "l");
+      leg_top_ratio_2groups->AddEntry(top_efficiency_ratio_2groups_graph, "ak_{T} (Res)", "l");
+      leg_top_ratio_2groups_Wmasscut->AddEntry(top_efficiency_ratio_2groups_Wmasscut_graph, "ak_{T} (Res)", "l");
     }
 
-    if (i != 0 && i != 1) {
-      TGraph *top_efficiency_ratio_graph = new TGraph(n_perps, ptlist, top_efficiency_ratio[i-2]);
+    if (i == 0 || i == 1) {
+      // TGraph *top_efficiency_ratio_graph = new TGraph(n_perps, ptlist, top_efficiency_ratio[i-2]);
 
-      top_efficiency_rawmass_graph->SetMarkerColor(colorlist[i-2]);
-      top_efficiency_mass_graph->SetMarkerColor(colorlist[i-2]);
-      top_efficiency_mass_2groups_graph->SetMarkerColor(colorlist[i-2]);
-      top_efficiency_mass_2groups_improved_graph->SetMarkerColor(colorlist[i-2]);
-      top_efficiency_ratio_graph->SetMarkerColor(colorlist[i-2]);
-      top_efficiency_rawmass_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_2groups_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_2groups_improved_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_ratio_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_2groups_Wmasscut_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_3jet4jet_2groups_graph->SetLineColor(colorlist[i-2]);
-      top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineColor(colorlist[i-2]);
+      top_efficiency_rawmass_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_rawmass_Wmasscut_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_mass_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_mass_2groups_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_mass_2groups_improved_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_ratio_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_ratio_Wmasscut_graph->SetMarkerColor(colorlist[i]);
+      top_efficiency_rawmass_graph->SetLineColor(colorlist[i]);
+      top_efficiency_rawmass_Wmasscut_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_2groups_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_2groups_improved_graph->SetLineColor(colorlist[i]);
+      top_efficiency_ratio_graph->SetLineColor(colorlist[i]);
+      top_efficiency_ratio_Wmasscut_graph->SetLineColor(colorlist[i]);
+      top_efficiency_ratio_2groups_graph->SetLineColor(colorlist[i]);
+      top_efficiency_ratio_2groups_Wmasscut_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_2groups_Wmasscut_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_3jet4jet_2groups_graph->SetLineColor(colorlist[i]);
+      top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineColor(colorlist[i]);
+
 
       leg_top_rawmass->AddEntry(top_efficiency_rawmass_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_top_rawmass_Wmasscut->AddEntry(top_efficiency_rawmass_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass->AddEntry(top_efficiency_mass_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass_2groups->AddEntry(top_efficiency_mass_2groups_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass_2groups_improved->AddEntry(top_efficiency_mass_2groups_improved_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_ratio->AddEntry(top_efficiency_ratio_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_top_ratio_Wmasscut->AddEntry(top_efficiency_ratio_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_top_ratio_2groups->AddEntry(top_efficiency_ratio_2groups_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_top_ratio_2groups_Wmasscut->AddEntry(top_efficiency_ratio_2groups_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass_2groups_Wmasscut->AddEntry(top_efficiency_mass_2groups_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass_2groups_improved_Wmasscut->AddEntry(top_efficiency_mass_2groups_improved_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass_3jet4jet_2groups->AddEntry(top_efficiency_mass_3jet4jet_2groups_graph, "#beta = " + (TString)ss.str(), "l");
       leg_top_mass_3jet4jet_2groups_Wmasscut->AddEntry(top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
 
-      top_efficiency_ratio_biggraph->Add(top_efficiency_ratio_graph);
     }
 
-    top_efficiency_rawmass_biggraph->Add(top_efficiency_rawmass_graph);
+    if (i != 2) {
+      top_efficiency_rawmass_biggraph->Add(top_efficiency_rawmass_graph);
+      top_efficiency_rawmass_Wmasscut_biggraph->Add(top_efficiency_rawmass_Wmasscut_graph);
+      top_efficiency_ratio_biggraph->Add(top_efficiency_ratio_graph);
+      top_efficiency_ratio_Wmasscut_biggraph->Add(top_efficiency_ratio_Wmasscut_graph);
+    }
+
     top_efficiency_mass_biggraph->Add(top_efficiency_mass_graph);
     top_efficiency_mass_2groups_biggraph->Add(top_efficiency_mass_2groups_graph);
     top_efficiency_mass_2groups_improved_biggraph->Add(top_efficiency_mass_2groups_improved_graph);
@@ -4229,127 +5710,207 @@ int main(int argc, char* argv[]){
     top_efficiency_mass_2groups_improved_Wmasscut_biggraph->Add(top_efficiency_mass_2groups_improved_Wmasscut_graph);
     top_efficiency_mass_3jet4jet_2groups_biggraph->Add(top_efficiency_mass_3jet4jet_2groups_graph);
     top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->Add(top_efficiency_mass_3jet4jet_2groups_Wmasscut_graph);
+    top_efficiency_ratio_2groups_biggraph->Add(top_efficiency_ratio_2groups_graph);
+    top_efficiency_ratio_2groups_Wmasscut_biggraph->Add(top_efficiency_ratio_2groups_Wmasscut_graph);
+
   }
+
+
+  TPaveText* radius_text = new TPaveText(0.65, 0.75, 0.8, 0.86, "brNDC");
+  radius_text->SetTextFont(132);
+  radius_text->SetTextSize(0.08);
+  radius_text->SetFillColor(kWhite);
+  radius_text->SetLineColor(kWhite);
+  radius_text->SetBorderSize(0);
+  radius_text->SetFillStyle(0);
+  radius_text->AddText("R = 0.5");
 
   TCanvas *top_rawmass_can = new TCanvas("top_rawmass_can", "top_rawmass_can", 600, 600);
   top_rawmass_can->cd();
   top_efficiency_rawmass_biggraph->Draw("ALP");
   leg_top_rawmass->Draw();
+  radius_text->Draw();
   top_efficiency_rawmass_biggraph->SetMinimum(0.);     
-  top_efficiency_rawmass_biggraph->SetMaximum(1.2);
-  top_efficiency_rawmass_biggraph->SetTitle("Top Efficiencies for Raw 6-jets (160 < m < 240)");
+  top_efficiency_rawmass_biggraph->SetMaximum(1.0);
+  top_efficiency_rawmass_biggraph->SetTitle("Top Eff. for 6-jets (150 < m_{jjj} < 200)");
   top_efficiency_rawmass_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_rawmass_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_rawmass_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_rawmass_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_rawmass_can->Write();
-  top_rawmass_can->Print("ttbarstudy_2x3_plots/top_efficiency_rawmass.eps", "eps");
+  top_rawmass_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_rawmass.eps", "eps");
+
+  TCanvas *top_rawmass_Wmasscut_can = new TCanvas("top_rawmass_Wmasscut_can", "top_rawmass_Wmasscut_can", 600, 600);
+  top_rawmass_Wmasscut_can->cd();
+  top_efficiency_rawmass_Wmasscut_biggraph->Draw("ALP");
+  leg_top_rawmass_Wmasscut->Draw();
+  radius_text->Draw();
+  top_efficiency_rawmass_Wmasscut_biggraph->SetMinimum(0.);     
+  top_efficiency_rawmass_Wmasscut_biggraph->SetMaximum(1.0);
+  // top_efficiency_rawmass_Wmasscut_biggraph->SetTitle("Top Eff. for 6-jets (150 < m_{jjj} < 200, m_{jj, min} > 50)");
+  top_efficiency_rawmass_Wmasscut_biggraph->SetTitle("Top Eff. (6-jets)");
+  top_efficiency_rawmass_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
+  top_efficiency_rawmass_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
+// top_efficiency_rawmass_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
+  top_rawmass_Wmasscut_can->Write();
+  top_rawmass_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_rawmass_Wmasscut.eps", "eps");
 
   TCanvas *top_mass_can = new TCanvas("top_mass_can", "top_mass_can", 600, 600);
   top_mass_can->cd();
   top_efficiency_mass_biggraph->Draw("ALP");
   leg_top_mass->Draw();
+  radius_text->Draw();
   top_efficiency_mass_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_biggraph->SetTitle("Top Efficiencies for Improved 6-jets (160 < m < 240)");
+  top_efficiency_mass_biggraph->SetMaximum(1.0);
+  top_efficiency_mass_biggraph->SetTitle("Top Eff. for Improved 6-jets (150 < m_{jjj} < 200)");
   top_efficiency_mass_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_can->Write();
-  top_mass_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass.eps", "eps");
+  top_mass_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass.eps", "eps");
 
   TCanvas *top_mass_2groups_can = new TCanvas("top_mass_2groups_can", "top_mass_2groups_can", 600, 600);
   top_mass_2groups_can->cd();
   top_efficiency_mass_2groups_biggraph->Draw("ALP");
   leg_top_mass_2groups->Draw();
+  radius_text->Draw();
   top_efficiency_mass_2groups_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_2groups_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_2groups_biggraph->SetTitle("Top Efficiencies for 2#times3 Method (160 < m < 240)");
+  top_efficiency_mass_2groups_biggraph->SetMaximum(1.0);
+  top_efficiency_mass_2groups_biggraph->SetTitle("Top Eff. for 2#times3-jets (150 < m_{jjj} < 200)");
   top_efficiency_mass_2groups_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_2groups_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_2groups_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_2groups_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_2groups_can->Write();
-  top_mass_2groups_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass_2groups.eps", "eps");
+  top_mass_2groups_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass_2groups.eps", "eps");
 
   TCanvas *top_mass_2groups_improved_can = new TCanvas("top_mass_2groups_improved_can", "top_mass_2groups_improved_can", 600, 600);
   top_mass_2groups_improved_can->cd();
   top_efficiency_mass_2groups_improved_biggraph->Draw("ALP");
   leg_top_mass_2groups_improved->Draw();
+  radius_text->Draw();
   top_efficiency_mass_2groups_improved_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_2groups_improved_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_2groups_improved_biggraph->SetTitle("Top Efficiencies for Improved 2#times3 Method (160 < m < 240)");
+  top_efficiency_mass_2groups_improved_biggraph->SetMaximum(1.0);
+  top_efficiency_mass_2groups_improved_biggraph->SetTitle("Top Eff. for Improved 2#times3 Method (150 < m_{jjj} < 200)");
   top_efficiency_mass_2groups_improved_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_2groups_improved_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_2groups_improved_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_2groups_improved_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_2groups_improved_can->Write();
-  top_mass_2groups_improved_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass_2groups_improved.eps", "eps");
+  top_mass_2groups_improved_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass_2groups_improved.eps", "eps");
 
   TCanvas *top_mass_2groups_Wmasscut_can = new TCanvas("top_mass_2groups_Wmasscut_can", "top_mass_2groups_Wmasscut_can", 600, 600);
   top_mass_2groups_Wmasscut_can->cd();
   top_efficiency_mass_2groups_Wmasscut_biggraph->Draw("ALP");
   leg_top_mass_2groups_Wmasscut->Draw();
+  radius_text->Draw();
   top_efficiency_mass_2groups_Wmasscut_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_2groups_Wmasscut_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_2groups_Wmasscut_biggraph->SetTitle("Top Efficiencies for Wmasscut 2#times3 Method (160 < m < 240)");
+  top_efficiency_mass_2groups_Wmasscut_biggraph->SetMaximum(1.0);
+  // top_efficiency_mass_2groups_Wmasscut_biggraph->SetTitle("Top Eff. for 2#times3-jets (150 < m_{jjj} < 200, m_{jj,min} > 50)");
+  top_efficiency_mass_2groups_Wmasscut_biggraph->SetTitle("Top Eff. (2#times3-jets)");
   top_efficiency_mass_2groups_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_2groups_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_2groups_Wmasscut_can->Write();
-  top_mass_2groups_Wmasscut_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass_2groups_Wmasscut.eps", "eps");
+  top_mass_2groups_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass_2groups_Wmasscut.eps", "eps");
 
   TCanvas *top_mass_2groups_improved_Wmasscut_can = new TCanvas("top_mass_2groups_improved_Wmasscut_can", "top_mass_2groups_improved_Wmasscut_can", 600, 600);
   top_mass_2groups_improved_Wmasscut_can->cd();
   top_efficiency_mass_2groups_improved_Wmasscut_biggraph->Draw("ALP");
   leg_top_mass_2groups_improved_Wmasscut->Draw();
+  radius_text->Draw();
   top_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetTitle("Top Efficiencies for Wmasscut 2#times3 Method (160 < m < 240)");
+  top_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetMaximum(1.0);
+  top_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetTitle("Top Eff. for Improved 2#times3-jets (150 < m_{jjj} < 200, m_{jj,min} > 50)");
   top_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_2groups_improved_Wmasscut_can->Write();
-  top_mass_2groups_improved_Wmasscut_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass_2groups_improved_Wmasscut.eps", "eps");
+  top_mass_2groups_improved_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass_2groups_improved_Wmasscut.eps", "eps");
 
 
   TCanvas *top_mass_3jet4jet_2groups_can = new TCanvas("top_mass_3jet4jet_2groups_can", "top_mass_3jet4jet_2groups_can", 600, 600);
   top_mass_3jet4jet_2groups_can->cd();
   top_efficiency_mass_3jet4jet_2groups_biggraph->Draw("ALP");
   leg_top_mass_3jet4jet_2groups->Draw();
+  radius_text->Draw();
   top_efficiency_mass_3jet4jet_2groups_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_3jet4jet_2groups_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_3jet4jet_2groups_biggraph->SetTitle("Top Efficiencies for 2#times3 OR 4 Method (160 < m < 240)");
+  top_efficiency_mass_3jet4jet_2groups_biggraph->SetMaximum(1.0);
+  top_efficiency_mass_3jet4jet_2groups_biggraph->SetTitle("Top Efficiencies for 2#times3 OR 4 Method (150 < m < 200)");
   top_efficiency_mass_3jet4jet_2groups_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_3jet4jet_2groups_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_3jet4jet_2groups_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_3jet4jet_2groups_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_3jet4jet_2groups_can->Write();
-  top_mass_3jet4jet_2groups_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass_3jet4jet_2groups.eps", "eps");
+  top_mass_3jet4jet_2groups_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass_3jet4jet_2groups.eps", "eps");
 
 
   TCanvas *top_mass_3jet4jet_2groups_Wmasscut_can = new TCanvas("top_mass_3jet4jet_2groups_Wmasscut_can", "top_mass_3jet4jet_2groups_Wmasscut_can", 600, 600);
   top_mass_3jet4jet_2groups_Wmasscut_can->cd();
   top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->Draw("ALP");
   leg_top_mass_3jet4jet_2groups_Wmasscut->Draw();
+  radius_text->Draw();
   top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetMinimum(0.);     
-  top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetMaximum(1.2);
-  top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetTitle("Top Efficiencies for Wmasscut 2#times3 OR 4 Method (160 < m < 240)");
+  top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetMaximum(1.0);
+  top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetTitle("Top Efficiencies for Wmasscut 2#times3 OR 4 Method (150 < m < 200)");
   top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% mass");
+  top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
 // top_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_mass_3jet4jet_2groups_Wmasscut_can->Write();
-  top_mass_3jet4jet_2groups_Wmasscut_can->Print("ttbarstudy_2x3_plots/top_efficiency_mass_3jet4jet_2groups_Wmasscut.eps", "eps");
+  top_mass_3jet4jet_2groups_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_mass_3jet4jet_2groups_Wmasscut.eps", "eps");
 
 
-  TCanvas *top_ratio_can = new TCanvas("top_ratio_can", "top_ratio_can", 800, 600);
+  TCanvas *top_ratio_can = new TCanvas("top_ratio_can", "top_ratio_can", 600, 600);
   top_ratio_can->cd();
   top_efficiency_ratio_biggraph->Draw("ALP");
   leg_top_ratio->Draw();
+  radius_text->Draw();
   top_efficiency_ratio_biggraph->SetMinimum(0.0);     
-  top_efficiency_ratio_biggraph->SetMaximum(2.0);
-  top_efficiency_ratio_biggraph->SetTitle("Ratio of 3-jettiness/2-jettiness Top Efficiencies");
-  top_efficiency_ratio_biggraph->GetXaxis()->SetTitle("pT_{min} (GeV)");
-  top_efficiency_ratio_biggraph->GetYaxis()->SetTitle("3-jet eff/2-jet eff");
-  top_efficiency_ratio_biggraph->GetYaxis()->SetTitleOffset(1.3);
+  top_efficiency_ratio_biggraph->SetMaximum(10.0);
+  top_efficiency_ratio_biggraph->SetTitle("Signal Significance (6-jets)");
+  top_efficiency_ratio_biggraph->GetXaxis()->SetTitle("p_{T,min} (GeV)");
+  top_efficiency_ratio_biggraph->GetYaxis()->SetTitle("S^{2}/B");
+  // top_efficiency_ratio_biggraph->GetYaxis()->SetTitleOffset(1.3);
   top_ratio_can->Write();
-  top_ratio_can->Print("ttbarstudy_2x3_plots/top_efficiency_ratio.eps", "eps");
+  top_ratio_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_ratio.eps", "eps");
+
+  TCanvas *top_ratio_Wmasscut_can = new TCanvas("top_ratio_Wmasscut_can", "top_ratio_Wmasscut_can", 600, 600);
+  top_ratio_Wmasscut_can->cd();
+  top_efficiency_ratio_Wmasscut_biggraph->Draw("ALP");
+  leg_top_ratio_Wmasscut->Draw();
+  radius_text->Draw();
+  top_efficiency_ratio_Wmasscut_biggraph->SetMinimum(0.0);     
+  top_efficiency_ratio_Wmasscut_biggraph->SetMaximum(10.0);
+  top_efficiency_ratio_Wmasscut_biggraph->SetTitle("Signal Signif. (6-jets)");
+  top_efficiency_ratio_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T,min} (GeV)");
+  top_efficiency_ratio_Wmasscut_biggraph->GetYaxis()->SetTitle("S^{2}/B");
+  // top_efficiency_ratio_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
+  top_ratio_Wmasscut_can->Write();
+  top_ratio_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_ratio_Wmasscut.eps", "eps");
+
+  TCanvas *top_ratio_2groups_can = new TCanvas("top_ratio_2groups_can", "top_ratio_2groups_can", 600, 600);
+  top_ratio_2groups_can->cd();
+  top_efficiency_ratio_2groups_biggraph->Draw("ALP");
+  leg_top_ratio_2groups->Draw();
+  radius_text->Draw();
+  top_efficiency_ratio_2groups_biggraph->SetMinimum(0.0);     
+  top_efficiency_ratio_2groups_biggraph->SetMaximum(10.0);
+  top_efficiency_ratio_2groups_biggraph->SetTitle("Signal Significance (2#times3-jets)");
+  top_efficiency_ratio_2groups_biggraph->GetXaxis()->SetTitle("p_{T,min} (GeV)");
+  top_efficiency_ratio_2groups_biggraph->GetYaxis()->SetTitle("S^{2}/B");
+  // top_efficiency_ratio_2groups_biggraph->GetYaxis()->SetTitleOffset(1.3);
+  top_ratio_2groups_can->Write();
+  top_ratio_2groups_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_ratio_2groups.eps", "eps");
+
+  TCanvas *top_ratio_2groups_Wmasscut_can = new TCanvas("top_ratio_2groups_Wmasscut_can", "top_ratio_2groups_Wmasscut_can", 600, 600);
+  top_ratio_2groups_Wmasscut_can->cd();
+  top_efficiency_ratio_2groups_Wmasscut_biggraph->Draw("ALP");
+  leg_top_ratio_2groups_Wmasscut->Draw();
+  radius_text->Draw();
+  top_efficiency_ratio_2groups_Wmasscut_biggraph->SetMinimum(0.0);     
+  top_efficiency_ratio_2groups_Wmasscut_biggraph->SetMaximum(10.0);
+  top_efficiency_ratio_2groups_Wmasscut_biggraph->SetTitle("Signal Signif. (2#times3-jets)");
+  top_efficiency_ratio_2groups_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T,min} (GeV)");
+  top_efficiency_ratio_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("S^{2}/B");
+  // top_efficiency_ratio_2groups_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
+  top_ratio_2groups_Wmasscut_can->Write();
+  top_ratio_2groups_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/top_efficiency_ratio_2groups_Wmasscut.eps", "eps");
 
   // for (int i = 0; i < mean_values.size(); i++) {
   //   cout << mean_values[i] << " & ";
@@ -4366,6 +5927,7 @@ int main(int argc, char* argv[]){
 
 
   TMultiGraph *qcd_efficiency_rawmass_biggraph = new TMultiGraph();
+  TMultiGraph *qcd_efficiency_rawmass_Wmasscut_biggraph = new TMultiGraph();
   TMultiGraph *qcd_efficiency_mass_biggraph = new TMultiGraph();
   TMultiGraph *qcd_efficiency_mass_2groups_biggraph = new TMultiGraph();
   TMultiGraph *qcd_efficiency_mass_2groups_improved_biggraph = new TMultiGraph();
@@ -4374,19 +5936,19 @@ int main(int argc, char* argv[]){
   TMultiGraph *qcd_efficiency_mass_3jet4jet_2groups_biggraph = new TMultiGraph();
   TMultiGraph *qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph = new TMultiGraph();
 
-  TMultiGraph *qcd_efficiency_ratio_biggraph = new TMultiGraph();
-
-  TLegend *leg_qcd_rawmass = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass_2groups = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass_2groups_improved = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass_2groups_Wmasscut = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass_2groups_improved_Wmasscut = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass_3jet4jet_2groups = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_mass_3jet4jet_2groups_Wmasscut = new TLegend(0.14, 0.6, 0.4, 0.88);
-  TLegend *leg_qcd_ratio = new TLegend(0.14, 0.6, 0.4, 0.88);
+  TLegend *leg_qcd_rawmass = new TLegend(0.17, 0.6, 0.5, 0.86);
+  TLegend *leg_qcd_rawmass_Wmasscut = new TLegend(0.17, 0.6, 0.5, 0.86);
+  TLegend *leg_qcd_mass = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_mass_2groups = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_mass_2groups_improved = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_mass_2groups_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_mass_2groups_improved_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_mass_3jet4jet_2groups = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_mass_3jet4jet_2groups_Wmasscut = new TLegend(0.17, 0.55, 0.5, 0.86);
+  TLegend *leg_qcd_ratio = new TLegend(0.17, 0.6, 0.5, 0.86);
 
   leg_qcd_rawmass->SetFillColor(kWhite);
+  leg_qcd_rawmass_Wmasscut->SetFillColor(kWhite);
   leg_qcd_mass->SetFillColor(kWhite);
   leg_qcd_mass_2groups->SetFillColor(kWhite);
   leg_qcd_mass_2groups_improved->SetFillColor(kWhite);
@@ -4395,7 +5957,9 @@ int main(int argc, char* argv[]){
   leg_qcd_mass_3jet4jet_2groups->SetFillColor(kWhite);
   leg_qcd_mass_3jet4jet_2groups_Wmasscut->SetFillColor(kWhite);
   leg_qcd_ratio->SetFillColor(kWhite);
+
   leg_qcd_rawmass->SetLineColor(kWhite);
+  leg_qcd_rawmass_Wmasscut->SetLineColor(kWhite);
   leg_qcd_mass->SetLineColor(kWhite);
   leg_qcd_mass_2groups->SetLineColor(kWhite);
   leg_qcd_mass_2groups_improved->SetLineColor(kWhite);
@@ -4405,15 +5969,40 @@ int main(int argc, char* argv[]){
   leg_qcd_mass_3jet4jet_2groups_Wmasscut->SetLineColor(kWhite);
   leg_qcd_ratio->SetLineColor(kWhite);
 
+  leg_qcd_rawmass->SetFillStyle(0);
+  leg_qcd_rawmass_Wmasscut->SetFillStyle(0);
+  leg_qcd_mass->SetFillStyle(0);
+  leg_qcd_mass_2groups->SetFillStyle(0);
+  leg_qcd_mass_2groups_improved->SetFillStyle(0);
+  leg_qcd_mass_2groups_Wmasscut->SetFillStyle(0);
+  leg_qcd_mass_2groups_improved_Wmasscut->SetFillStyle(0);
+  leg_qcd_mass_3jet4jet_2groups->SetFillStyle(0);
+  leg_qcd_mass_3jet4jet_2groups_Wmasscut->SetFillStyle(0);
+  leg_qcd_ratio->SetFillStyle(0);
+
+
+  leg_qcd_rawmass->SetTextSize(0.09);
+  leg_qcd_rawmass_Wmasscut->SetTextSize(0.09);
+  leg_qcd_mass->SetTextSize(0.09);
+  leg_qcd_mass_2groups->SetTextSize(0.09);
+  leg_qcd_mass_2groups_improved->SetTextSize(0.09);
+  leg_qcd_mass_2groups_Wmasscut->SetTextSize(0.09);
+  leg_qcd_mass_2groups_improved_Wmasscut->SetTextSize(0.09);
+  leg_qcd_mass_3jet4jet_2groups->SetTextSize(0.09);
+  leg_qcd_mass_3jet4jet_2groups_Wmasscut->SetTextSize(0.09);
+  leg_qcd_ratio->SetTextSize(0.09);
+
   for (int i = 0; i < n_betas + 2; i++) {
 
     double beta;
-    if (i != 0 && i != 1) beta = betalist[i - 2];
+    // if (i != 0 && i != 1) beta = betalist[i - 2];
+    if (i == 0 || i == 1) beta = betalist[i];
 
     ostringstream ss;
     ss << beta;
 
     TGraph *qcd_efficiency_rawmass_graph = new TGraph(n_perps, ptlist, qcd_efficiency_rawmass[i]);
+    TGraph *qcd_efficiency_rawmass_Wmasscut_graph = new TGraph(n_perps, ptlist, qcd_efficiency_rawmass_Wmasscut[i]);
     TGraph *qcd_efficiency_mass_graph = new TGraph(n_perps, ptlist, qcd_efficiency_mass[i]);
     TGraph *qcd_efficiency_mass_2groups_graph = new TGraph(n_perps, ptlist, qcd_efficiency_mass_2groups[i]);
     TGraph *qcd_efficiency_mass_2groups_improved_graph = new TGraph(n_perps, ptlist, qcd_efficiency_mass_2groups_improved[i]);
@@ -4422,22 +6011,21 @@ int main(int argc, char* argv[]){
     TGraph *qcd_efficiency_mass_3jet4jet_2groups_graph = new TGraph(n_perps, ptlist, qcd_efficiency_mass_3jet4jet_2groups[i]);
     TGraph *qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph = new TGraph(n_perps, ptlist, qcd_efficiency_mass_3jet4jet_2groups_Wmasscut[i]);
 
-    qcd_efficiency_rawmass_graph->SetLineWidth(3);
-    qcd_efficiency_mass_graph->SetLineWidth(3);
-    qcd_efficiency_mass_2groups_graph->SetLineWidth(3);
-    qcd_efficiency_mass_2groups_improved_graph->SetLineWidth(3);
-    qcd_efficiency_mass_2groups_Wmasscut_graph->SetLineWidth(3);
-    qcd_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineWidth(3);
-    qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineWidth(3);
-    qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineWidth(3);
+    qcd_efficiency_rawmass_graph->SetLineWidth(4);
+    qcd_efficiency_rawmass_Wmasscut_graph->SetLineWidth(4);
+    qcd_efficiency_mass_graph->SetLineWidth(4);
+    qcd_efficiency_mass_2groups_graph->SetLineWidth(4);
+    qcd_efficiency_mass_2groups_improved_graph->SetLineWidth(4);
+    qcd_efficiency_mass_2groups_Wmasscut_graph->SetLineWidth(4);
+    qcd_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineWidth(4);
+    qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineWidth(4);
+    qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineWidth(4);
   // higgs_efficiencies_1jet_graph->SetMarkerStyle(3);
   // higgs_efficiencies_1jet_graph->SetMarkerSize(2);
   // qcd_efficiency_rawmass_graph->SetMarkerStyle(3);
   // qcd_efficiency_rawmass_graph->SetMarkerSize(2);
   // qcd_efficiency_mass_graph->SetMarkerStyle(3);
   // qcd_efficiency_mass_graph->SetMarkerSize(2);
-  // qcd_efficiency_ratio_graph->SetMarkerStyle(3);
-  // qcd_efficiency_ratio_graph->SetMarkerSize(2);
   // angulardiff_1jet_graph->SetMarkerStyle(3);
   // angulardiff_1jet_graph->SetMarkerSize(2);
   // angulardiff_prop_1jet_graph->SetMarkerStyle(3);
@@ -4447,19 +6035,31 @@ int main(int argc, char* argv[]){
   // jet_distance_diff_1jet_graph->SetMarkerStyle(3);
   // jet_distance_diff_1jet_graph->SetMarkerSize(2);
 
-    if (i == 0) {
-      leg_qcd_rawmass->AddEntry(qcd_efficiency_rawmass_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass->AddEntry(qcd_efficiency_mass_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass_2groups->AddEntry(qcd_efficiency_mass_2groups_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass_2groups_improved->AddEntry(qcd_efficiency_mass_2groups_improved_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass_2groups_improved_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass_3jet4jet_2groups->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (2-jet)", "l");
-      leg_qcd_mass_3jet4jet_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (2-jet)", "l");
+    if (i == 2) {
+
+      qcd_efficiency_rawmass_graph->SetLineStyle(7);
+      qcd_efficiency_rawmass_Wmasscut_graph->SetLineStyle(7);
+      qcd_efficiency_mass_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_improved_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_Wmasscut_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineStyle(7);
+      qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineStyle(7);
+      qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineStyle(7);
+
+      // leg_qcd_rawmass->AddEntry(qcd_efficiency_rawmass_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass->AddEntry(qcd_efficiency_mass_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass_2groups->AddEntry(qcd_efficiency_mass_2groups_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass_2groups_improved->AddEntry(qcd_efficiency_mass_2groups_improved_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass_2groups_improved_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass_3jet4jet_2groups->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (Bst)", "l");
+      leg_qcd_mass_3jet4jet_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (Bst)", "l");
     }
 
-    if (i == 1) {
-      qcd_efficiency_rawmass_graph->SetLineColor(8);
+    if (i == 3) {
+      qcd_efficiency_rawmass_graph->SetLineColor(kBlack);
+      qcd_efficiency_rawmass_Wmasscut_graph->SetLineColor(kBlack);
       qcd_efficiency_mass_graph->SetLineColor(8);
       qcd_efficiency_mass_2groups_graph->SetLineColor(8);
       qcd_efficiency_mass_2groups_improved_graph->SetLineColor(8);
@@ -4468,35 +6068,46 @@ int main(int argc, char* argv[]){
       qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineColor(8);
       qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineColor(8);
 
-      leg_qcd_rawmass->AddEntry(qcd_efficiency_rawmass_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass->AddEntry(qcd_efficiency_mass_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass_2groups->AddEntry(qcd_efficiency_mass_2groups_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass_2groups_improved->AddEntry(qcd_efficiency_mass_2groups_improved_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass_2groups_improved_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass_3jet4jet_2groups->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (6-jet)", "l");
-      leg_qcd_mass_3jet4jet_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (6-jet)", "l");
+      qcd_efficiency_rawmass_graph->SetLineStyle(7);
+      qcd_efficiency_rawmass_Wmasscut_graph->SetLineStyle(7);
+      qcd_efficiency_mass_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_improved_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_Wmasscut_graph->SetLineStyle(7);
+      qcd_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineStyle(7);
+      qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineStyle(7);
+      qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineStyle(7);
+
+      leg_qcd_rawmass->AddEntry(qcd_efficiency_rawmass_graph, "ak_{T}", "l");
+      leg_qcd_rawmass_Wmasscut->AddEntry(qcd_efficiency_rawmass_Wmasscut_graph, "ak_{T}", "l");
+      leg_qcd_mass->AddEntry(qcd_efficiency_mass_graph, "ak_{T} (Res)", "l");
+      leg_qcd_mass_2groups->AddEntry(qcd_efficiency_mass_2groups_graph, "ak_{T} (Res)", "l");
+      leg_qcd_mass_2groups_improved->AddEntry(qcd_efficiency_mass_2groups_improved_graph, "ak_{T} (Res)", "l");
+      leg_qcd_mass_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_Wmasscut_graph, "ak_{T} (Res)", "l");
+      leg_qcd_mass_2groups_improved_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_improved_Wmasscut_graph, "ak_{T} (Res)", "l");
+      leg_qcd_mass_3jet4jet_2groups->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_graph, "ak_{T} (Res)", "l");
+      leg_qcd_mass_3jet4jet_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "ak_{T} (Res)", "l");
     }
 
-    if (i != 0 && i != 1) {
-      TGraph *qcd_efficiency_ratio_graph = new TGraph(n_perps, ptlist, qcd_efficiency_ratio[i-2]);
+    if (i == 0 || i == 1) {
 
-      qcd_efficiency_rawmass_graph->SetMarkerColor(colorlist[i-2]);
-      qcd_efficiency_mass_graph->SetMarkerColor(colorlist[i-2]);
-      qcd_efficiency_mass_2groups_graph->SetMarkerColor(colorlist[i-2]);
-      qcd_efficiency_mass_2groups_improved_graph->SetMarkerColor(colorlist[i-2]);
-      qcd_efficiency_ratio_graph->SetMarkerColor(colorlist[i-2]);
-      qcd_efficiency_rawmass_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_2groups_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_2groups_improved_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_2groups_Wmasscut_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_ratio_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineColor(colorlist[i-2]);
-      qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineColor(colorlist[i-2]);
+      qcd_efficiency_rawmass_graph->SetMarkerColor(colorlist[i]);
+      qcd_efficiency_rawmass_Wmasscut_graph->SetMarkerColor(colorlist[i]);
+      qcd_efficiency_mass_graph->SetMarkerColor(colorlist[i]);
+      qcd_efficiency_mass_2groups_graph->SetMarkerColor(colorlist[i]);
+      qcd_efficiency_mass_2groups_improved_graph->SetMarkerColor(colorlist[i]);
+      qcd_efficiency_rawmass_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_rawmass_Wmasscut_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_2groups_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_2groups_improved_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_2groups_Wmasscut_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_2groups_improved_Wmasscut_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_3jet4jet_2groups_graph->SetLineColor(colorlist[i]);
+      qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph->SetLineColor(colorlist[i]);
 
       leg_qcd_rawmass->AddEntry(qcd_efficiency_rawmass_graph, "#beta = " + (TString)ss.str(), "l");
+      leg_qcd_rawmass_Wmasscut->AddEntry(qcd_efficiency_rawmass_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
       leg_qcd_mass->AddEntry(qcd_efficiency_mass_graph, "#beta = " + (TString)ss.str(), "l");
       leg_qcd_mass_2groups->AddEntry(qcd_efficiency_mass_2groups_graph, "#beta = " + (TString)ss.str(), "l");
       leg_qcd_mass_2groups_improved->AddEntry(qcd_efficiency_mass_2groups_improved_graph, "#beta = " + (TString)ss.str(), "l");
@@ -4504,12 +6115,11 @@ int main(int argc, char* argv[]){
       leg_qcd_mass_2groups_improved_Wmasscut->AddEntry(qcd_efficiency_mass_2groups_improved_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
       leg_qcd_mass_3jet4jet_2groups->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_graph, "#beta = " + (TString)ss.str(), "l");
       leg_qcd_mass_3jet4jet_2groups_Wmasscut->AddEntry(qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_graph, "#beta = " + (TString)ss.str(), "l");
-      leg_qcd_ratio->AddEntry(qcd_efficiency_ratio_graph, "#beta = " + (TString)ss.str(), "l");
 
-      qcd_efficiency_ratio_biggraph->Add(qcd_efficiency_ratio_graph);
     }
 
-    qcd_efficiency_rawmass_biggraph->Add(qcd_efficiency_rawmass_graph);
+    if (i != 2) qcd_efficiency_rawmass_biggraph->Add(qcd_efficiency_rawmass_graph);
+    if (i != 2) qcd_efficiency_rawmass_Wmasscut_biggraph->Add(qcd_efficiency_rawmass_Wmasscut_graph);
     qcd_efficiency_mass_biggraph->Add(qcd_efficiency_mass_graph);
     qcd_efficiency_mass_2groups_biggraph->Add(qcd_efficiency_mass_2groups_graph);
     qcd_efficiency_mass_2groups_improved_biggraph->Add(qcd_efficiency_mass_2groups_improved_graph);
@@ -4523,123 +6133,135 @@ int main(int argc, char* argv[]){
   qcd_rawmass_can->cd();
   qcd_efficiency_rawmass_biggraph->Draw("ALP");
   leg_qcd_rawmass->Draw();
+  radius_text->Draw();
   qcd_efficiency_rawmass_biggraph->SetMinimum(0.);     
-  qcd_efficiency_rawmass_biggraph->SetMaximum(1.2);
-  qcd_efficiency_rawmass_biggraph->SetTitle("QCD Efficiencies for Raw 6-jets (160 < m < 240)");
+  qcd_efficiency_rawmass_biggraph->SetMaximum(1.0);
+  qcd_efficiency_rawmass_biggraph->SetTitle("QCD Eff. for 6-jets (150 < m_{jjj} < 200)");
   qcd_efficiency_rawmass_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_rawmass_biggraph->GetYaxis()->SetTitle("% mass");
+  qcd_efficiency_rawmass_biggraph->GetYaxis()->SetTitle("% signal");
 // qcd_efficiency_rawmass_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_rawmass_can->Write();
-  qcd_rawmass_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_rawmass.eps", "eps");
+  qcd_rawmass_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_rawmass.eps", "eps");
+
+
+  TCanvas *qcd_rawmass_Wmasscut_can = new TCanvas("qcd_rawmass_Wmasscut_can", "qcd_rawmass_Wmasscut_can", 600, 600);
+  qcd_rawmass_Wmasscut_can->cd();
+  qcd_efficiency_rawmass_Wmasscut_biggraph->Draw("ALP");
+  leg_qcd_rawmass_Wmasscut->Draw();
+  radius_text->Draw();
+  qcd_efficiency_rawmass_Wmasscut_biggraph->SetMinimum(0.);     
+  qcd_efficiency_rawmass_Wmasscut_biggraph->SetMaximum(1.0);
+  qcd_efficiency_rawmass_Wmasscut_biggraph->SetTitle("QCD Eff. (6-jets)");
+  qcd_efficiency_rawmass_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
+  qcd_efficiency_rawmass_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
+// qcd_efficiency_rawmass_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
+  qcd_rawmass_Wmasscut_can->Write();
+  qcd_rawmass_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_rawmass_Wmasscut.eps", "eps");
+
 
   TCanvas *qcd_mass_can = new TCanvas("qcd_mass_can", "qcd_mass_can", 600, 600);
   qcd_mass_can->cd();
   qcd_efficiency_mass_biggraph->Draw("ALP");
   leg_qcd_mass->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_biggraph->SetMinimum(0.);     
-  qcd_efficiency_mass_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_biggraph->SetTitle("QCD Efficiencies for Improved 6-jets");
+  qcd_efficiency_mass_biggraph->SetMaximum(1.0);
+  qcd_efficiency_mass_biggraph->SetTitle("QCD Eff. for Improved 6-jets");
   qcd_efficiency_mass_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_biggraph->GetYaxis()->SetTitle("% mass 160-240");
+  qcd_efficiency_mass_biggraph->GetYaxis()->SetTitle("% signal 150-200");
 // qcd_efficiency_mass_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_can->Write();
-  qcd_mass_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass.eps", "eps");
+  qcd_mass_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass.eps", "eps");
 
   TCanvas *qcd_mass_2groups_can = new TCanvas("qcd_mass_2groups_can", "qcd_mass_2groups_can", 600, 600);
   qcd_mass_2groups_can->cd();
   qcd_efficiency_mass_2groups_biggraph->Draw("ALP");
   leg_qcd_mass_2groups->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_2groups_biggraph->SetMinimum(0.);     
-  qcd_efficiency_mass_2groups_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_2groups_biggraph->SetTitle("QCD Efficiencies for 2#times3 Method (160 < m < 240)");
+  qcd_efficiency_mass_2groups_biggraph->SetMaximum(1.0);
+  qcd_efficiency_mass_2groups_biggraph->SetTitle("QCD Eff. for 2#times3-jets (150 < m_{jjj} < 200)");
   qcd_efficiency_mass_2groups_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_2groups_biggraph->GetYaxis()->SetTitle("% mass ");
+  qcd_efficiency_mass_2groups_biggraph->GetYaxis()->SetTitle("% signal ");
 // qcd_efficiency_mass_2groups_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_2groups_can->Write();
-  qcd_mass_2groups_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass_2groups.eps", "eps");
+  qcd_mass_2groups_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass_2groups.eps", "eps");
 
 
   TCanvas *qcd_mass_2groups_improved_can = new TCanvas("qcd_mass_2groups_improved_can", "qcd_mass_2groups_improved_can", 600, 600);
   qcd_mass_2groups_improved_can->cd();
   qcd_efficiency_mass_2groups_improved_biggraph->Draw("ALP");
   leg_qcd_mass_2groups_improved->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_2groups_improved_biggraph->SetMinimum(0.);     
-  qcd_efficiency_mass_2groups_improved_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_2groups_improved_biggraph->SetTitle("QCD Efficiencies for Improved 2#times3 Method (160 < m < 240)");
+  qcd_efficiency_mass_2groups_improved_biggraph->SetMaximum(1.0);
+  qcd_efficiency_mass_2groups_improved_biggraph->SetTitle("QCD Eff for Improved 2#times3 Method (150 < m_{jjj} < 200)");
   qcd_efficiency_mass_2groups_improved_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_2groups_improved_biggraph->GetYaxis()->SetTitle("% mass");
+  qcd_efficiency_mass_2groups_improved_biggraph->GetYaxis()->SetTitle("% signal");
 // qcd_efficiency_mass_2groups_improved_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_2groups_improved_can->Write();
-  qcd_mass_2groups_improved_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass_2groups_improved.eps", "eps");
+  qcd_mass_2groups_improved_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass_2groups_improved.eps", "eps");
 
 
   TCanvas *qcd_mass_2groups_Wmasscut_can = new TCanvas("qcd_mass_2groups_Wmasscut_can", "qcd_mass_2groups_Wmasscut_can", 600, 600);
   qcd_mass_2groups_Wmasscut_can->cd();
   qcd_efficiency_mass_2groups_Wmasscut_biggraph->Draw("ALP");
   leg_qcd_mass_2groups_Wmasscut->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_2groups_Wmasscut_biggraph->SetMinimum(0.);     
-  qcd_efficiency_mass_2groups_Wmasscut_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_2groups_Wmasscut_biggraph->SetTitle("QCD Efficiencies for Wmasscut 2#times3 Method (160 < m < 240)");
+  qcd_efficiency_mass_2groups_Wmasscut_biggraph->SetMaximum(1.0);
+  // qcd_efficiency_mass_2groups_Wmasscut_biggraph->SetTitle("QCD Eff. for 2#times3-jets (150 < m_{jjj} < 200, m_{jj, min} > 50)");
+  qcd_efficiency_mass_2groups_Wmasscut_biggraph->SetTitle("QCD Eff. (2#times3-jets)");
   qcd_efficiency_mass_2groups_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% mass");
+  qcd_efficiency_mass_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
 // qcd_efficiency_mass_2groups_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_2groups_Wmasscut_can->Write();
-  qcd_mass_2groups_Wmasscut_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass_2groups_Wmasscut.eps", "eps");
+  qcd_mass_2groups_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass_2groups_Wmasscut.eps", "eps");
 
   TCanvas *qcd_mass_2groups_improved_Wmasscut_can = new TCanvas("qcd_mass_2groups_improved_Wmasscut_can", "qcd_mass_2groups_improved_Wmasscut_can", 600, 600);
   qcd_mass_2groups_improved_Wmasscut_can->cd();
   qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->Draw("ALP");
   leg_qcd_mass_2groups_improved_Wmasscut->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetMinimum(0.);     
-  qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetTitle("QCD Efficiencies for Wmasscut 2#times3 Method (160 < m < 240)");
+  qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetMaximum(1.0);
+  qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->SetTitle("QCD Efficiencies for Wmasscut 2#times3 Method (150 < m < 200)");
   qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetYaxis()->SetTitle("% mass");
+  qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
 // qcd_efficiency_mass_2groups_improved_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_2groups_improved_Wmasscut_can->Write();
-  qcd_mass_2groups_improved_Wmasscut_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass_2groups_improved_Wmasscut.eps", "eps");
+  qcd_mass_2groups_improved_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass_2groups_improved_Wmasscut.eps", "eps");
 
 
   TCanvas *qcd_mass_3jet4jet_2groups_can = new TCanvas("qcd_mass_3jet4jet_2groups_can", "qcd_mass_3jet4jet_2groups_can", 600, 600);
   qcd_mass_3jet4jet_2groups_can->cd();
   qcd_efficiency_mass_3jet4jet_2groups_biggraph->Draw("ALP");
   leg_qcd_mass_3jet4jet_2groups->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_3jet4jet_2groups_biggraph->SetMinimum(0.);     
   qcd_efficiency_mass_3jet4jet_2groups_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_3jet4jet_2groups_biggraph->SetTitle("QCD Efficiencies for Wmasscut 2#times3 Method (160 < m < 240)");
+  qcd_efficiency_mass_3jet4jet_2groups_biggraph->SetTitle("QCD Efficiencies for 2#times3 OR 4 Method (150 < m < 200)");
   qcd_efficiency_mass_3jet4jet_2groups_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_3jet4jet_2groups_biggraph->GetYaxis()->SetTitle("% mass");
+  qcd_efficiency_mass_3jet4jet_2groups_biggraph->GetYaxis()->SetTitle("% signal");
 // qcd_efficiency_mass_3jet4jet_2groups_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_3jet4jet_2groups_can->Write();
-  qcd_mass_3jet4jet_2groups_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass_3jet4jet_2groups.eps", "eps");
+  qcd_mass_3jet4jet_2groups_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass_3jet4jet_2groups.eps", "eps");
 
 
   TCanvas *qcd_mass_3jet4jet_2groups_Wmasscut_can = new TCanvas("qcd_mass_3jet4jet_2groups_Wmasscut_can", "qcd_mass_3jet4jet_2groups_Wmasscut_can", 600, 600);
   qcd_mass_3jet4jet_2groups_Wmasscut_can->cd();
   qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->Draw("ALP");
   leg_qcd_mass_3jet4jet_2groups_Wmasscut->Draw();
+  radius_text->Draw();
   qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetMinimum(0.);     
-  qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetMaximum(1.2);
-  qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetTitle("QCD Efficiencies for Wmasscut 2#times3 Method (160 < m < 240)");
+  qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetMaximum(1.0);
+  qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->SetTitle("QCD Efficiencies for Wmasscut 2#times3 OR 4 Method (150 < m < 200)");
   qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% mass");
+  qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetYaxis()->SetTitle("% signal");
 // qcd_efficiency_mass_3jet4jet_2groups_Wmasscut_biggraph->GetYaxis()->SetTitleOffset(1.3);
   qcd_mass_3jet4jet_2groups_Wmasscut_can->Write();
-  qcd_mass_3jet4jet_2groups_Wmasscut_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_mass_3jet4jet_2groups_Wmasscut.eps", "eps");
+  qcd_mass_3jet4jet_2groups_Wmasscut_can->Print("ttbarstudy_2x3_onepassXcone_test_plots/qcd_efficiency_mass_3jet4jet_2groups_Wmasscut.eps", "eps");
 
-
-  TCanvas *qcd_ratio_can = new TCanvas("qcd_ratio_can", "qcd_ratio_can", 800, 600);
-  qcd_ratio_can->cd();
-  qcd_efficiency_ratio_biggraph->Draw("ALP");
-  leg_qcd_ratio->Draw();
-  qcd_efficiency_ratio_biggraph->SetMinimum(0.0);     
-  qcd_efficiency_ratio_biggraph->SetMaximum(2.0);
-  qcd_efficiency_ratio_biggraph->SetTitle("Ratio of 3-jettiness/2-jettiness qcd Efficiencies");
-  qcd_efficiency_ratio_biggraph->GetXaxis()->SetTitle("p_{T, min} (GeV)");
-  qcd_efficiency_ratio_biggraph->GetYaxis()->SetTitle("3-jet eff/2-jet eff");
-  qcd_efficiency_ratio_biggraph->GetYaxis()->SetTitleOffset(1.3);
-  qcd_ratio_can->Write();
-  qcd_ratio_can->Print("ttbarstudy_2x3_plots/qcd_efficiency_ratio.eps", "eps");
 
   // for (int i = 0; i < mean_values.size(); i++) {
   //   cout << mean_values[i] << " & ";

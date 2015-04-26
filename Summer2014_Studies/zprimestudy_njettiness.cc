@@ -114,6 +114,7 @@ double calcDphi(double phi1, double phi2) {
   if (dphi < -TMath::Pi()) dphi += 2*TMath::Pi();
   return dphi; 
 }
+
 vector<PseudoJet> findMinAxes(vector<PseudoJet> input_particles, vector<PseudoJet> starting_axes, int njettiness, double beta, double Rcutoff) {
 
   vector<PseudoJet> min_manual_axes;
@@ -169,14 +170,18 @@ int main(int argc, char* argv[]) {
   plain->SetTitleFont(132, "xy");
   plain->SetLegendFont(132);
   // plain->SetTextSize(0.05);
-  plain->SetLabelSize(0.04, "xy");
-  plain->SetLabelOffset(0.003, "xy");
-  plain->SetTitleSize(0.06, "a");
-  plain->SetTitleSize(0.05, "xy");
-  plain->SetPadLeftMargin(0.12);
-  plain->SetPadBottomMargin(0.12);
-  plain->SetTitleOffset(1.25, "y");
-  plain->SetHistLineWidth(3);
+  plain->SetLabelSize(0.05, "xy");
+  // plain->SetLabelOffset(0.003, "xy");
+  plain->SetTitleSize(0.09, "a");
+  plain->SetTitleSize(0.07, "y");
+  plain->SetTitleSize(0.08, "x");
+  plain->SetPadTopMargin(0.12);
+  plain->SetPadLeftMargin(0.15);
+  plain->SetPadBottomMargin(0.15);
+  plain->SetTitleOffset(0.8, "x");
+  plain->SetTitleOffset(1.1, "y");
+  // plain->SetTitleOffset(1.25, "y");
+  plain->SetHistLineWidth(4);
 
   // plain->SetLegendSize(12);
   plain->SetTitleBorderSize(0);
@@ -209,16 +214,17 @@ int main(int argc, char* argv[]) {
   vector<double> betalist;
   // betalist.push_back(0.25);
   // betalist.push_back(0.5);
-  betalist.push_back(1.0);
   betalist.push_back(2.0);
+  betalist.push_back(1.0);
+  // betalist.push_back(2.0);
   // betalist.push_back(3.0);
   int n_betas = betalist.size();
 
   vector<Color_t> colorlist;
-  colorlist.push_back(kRed);
   colorlist.push_back(kBlue);
   colorlist.push_back(kRed);
-  colorlist.push_back(kBlue);
+  // colorlist.push_back(kRed);
+  // colorlist.push_back(kBlue);
 
   TObjArray njet_jet_mass_hists(n_betas);
   TObjArray njet_jet_perp_hists(n_betas);
@@ -239,6 +245,9 @@ int main(int argc, char* argv[]) {
   TObjArray area_1jet_njet_hists(n_betas);
   TObjArray area_1jet_diff_hists(n_betas);
   TObjArray area_1jet_diff_wta_hists(n_betas);
+
+  TObjArray area_2jet_njet_hists(n_betas);
+  TObjArray area_2jet_diff_hists(n_betas);
 
   TObjArray area_3jet_njet_hists(n_betas);
   TObjArray area_3jet_diff_hists(n_betas);
@@ -350,7 +359,7 @@ int main(int argc, char* argv[]) {
     TString title;
     
     TH1* njet_jet_mass = new TH1F("njet_jet_mass", "Mass of individual njet jet (#beta = " + (TString)ss.str() + ")", 50, 0, 500);
-    TH1* njet_jet_perp = new TH1F("njet_jet_perp", "Perp of individual njet jet (#beta = " + (TString)ss.str() + ")", 50, 0, 1200);
+    TH1* njet_jet_perp = new TH1F("njet_jet_perp", "Perp of individual njet jet (#beta = " + (TString)ss.str() + ")", 50, 0, 1000);
     TH1* njet_jet_phi = new TH1F("njet_jet_phi", "Phi of individual njet jet (#beta = " + (TString)ss.str() + ")", 32, 0, 6.4);
     TH1* njet_jet_eta = new TH1F("njet_jet_eta", "Eta of individual njet jet (#beta = " + (TString)ss.str() + ")", 50, -5, 5);
 
@@ -359,8 +368,7 @@ int main(int argc, char* argv[]) {
     TH1* jetphi_diff = new TH1F("jetphi_diff", "difference in phi of akt and njet jets (#beta = " + (TString)ss.str() + ")", 16, 0, 3.2);
     TH1* tau1_diff = new TH1F("tau1_diff", "difference in #tau_{1} jets (akt - njet) (#beta = " + (TString)ss.str() + ")", 100, -200, 200);
     TH1* tau2_diff = new TH1F("tau2_diff", "difference in #tau_{2} jets (akt - njet) (#beta = " + (TString)ss.str() + ")", 100, -200, 200);
-    TH2* jetperp_phi_diff = new TH2F("jetperp_phi_diff", "2d plot of phi diff vs perp diff", 30, -100, 200, 32, 0, 3.2);
-    // TH2* jetperp_phi_diff = new TH2F("jetperp_phi_diff", "2d plot of phi diff vs perp diff" , 16, 0, 3.2, 50, -200, 200);
+    TH2* jetperp_phi_diff = new TH2F("jetperp_phi_diff", "2d plot of phi Diff. vs perp Diff.", 30, -100, 200, 32, 0, 3.2);
 
     TH1* jetmass_diff_wta = new TH1F("jetmass_diff_wta", "difference in mass of akt and njet jets (#beta = " + (TString)ss.str() + ")", 50, -100, 100);
     TH1* jetperp_diff_wta = new TH1F("jetperp_diff_wta", "difference in perp of akt and njet jets (#beta = " + (TString)ss.str() + ")", 50, -100, 100);
@@ -368,13 +376,16 @@ int main(int argc, char* argv[]) {
     TH1* tau1_diff_wta = new TH1F("tau1_diff_wta", "difference in #tau_{1} jets (akt - njet) (#beta = " + (TString)ss.str() + ")", 100, -200, 200);
     TH1* tau2_diff_wta = new TH1F("tau2_diff_wta", "difference in #tau_{2} jets (akt - njet) (#beta = " + (TString)ss.str() + ")", 100, -200, 200);
 
-    TH1* area_1jet_njet = new TH1F("area_1jet_njet", "area of 1-jettiness jet", 100, 0.5, 2.5);
-    TH1* area_1jet_diff = new TH1F("area_1jet_diff", "diff of 1-jettiness jet", 50, -0.5, 0.5);
-    TH1* area_1jet_diff_wta = new TH1F("area_1jet_diff_wta", "diff of 1-jettiness jet", 50, -0.5, 0.5);
+    TH1* area_1jet_njet = new TH1F("area_1jet_njet", "area of 1-jettiness jet", 40, 0.4, 1.2);
+    TH1* area_1jet_diff = new TH1F("area_1jet_diff", "Diff. of 1-jettiness jet", 50, -0.5, 0.5);
+    TH1* area_1jet_diff_wta = new TH1F("area_1jet_diff_wta", "Diff. of 1-jettiness jet", 50, -0.5, 0.5);
 
-    TH1* area_3jet_njet = new TH1F("area_3jet_njet", "area of 1-jettiness jet", 100, 0.5, 2.5);
-    TH1* area_3jet_diff = new TH1F("area_3jet_diff", "diff of 1-jettiness jet", 50, -0.5, 1.0);
-    TH1* area_3jet_diff_wta = new TH1F("area_3jet_diff_wta", "diff of 1-jettiness jet", 50, -0.5, 1.0);
+    TH1* area_2jet_njet = new TH1F("area_2jet_njet", "area of 2-jettiness jet", 40, 0.4, 1.2);
+    TH1* area_2jet_diff = new TH1F("area_2jet_diff", "Diff. of 2-jettiness jet", 50, -0.5, 0.5);
+
+    TH1* area_3jet_njet = new TH1F("area_3jet_njet", "area of 1-jettiness jet", 40, 0.4, 1.2);
+    TH1* area_3jet_diff = new TH1F("area_3jet_diff", "Diff. of 1-jettiness jet", 50, -0.5, 1.0);
+    TH1* area_3jet_diff_wta = new TH1F("area_3jet_diff_wta", "Diff. of 1-jettiness jet", 50, -0.5, 1.0);
 
     njet_jet_mass_hists.Add(njet_jet_mass);
     njet_jet_perp_hists.Add(njet_jet_perp);
@@ -397,6 +408,8 @@ int main(int argc, char* argv[]) {
     area_1jet_njet_hists.Add(area_1jet_njet);
     area_1jet_diff_hists.Add(area_1jet_diff);
     area_1jet_diff_wta_hists.Add(area_1jet_diff_wta);
+    area_2jet_njet_hists.Add(area_2jet_njet);
+    area_2jet_diff_hists.Add(area_2jet_diff);
     area_3jet_njet_hists.Add(area_3jet_njet);
     area_3jet_diff_hists.Add(area_3jet_diff);
     area_3jet_diff_wta_hists.Add(area_3jet_diff_wta);
@@ -408,7 +421,7 @@ int main(int argc, char* argv[]) {
 
     TH1* twojet_bothjets_perp_diff = new TH1F("twojet_bothjets_perp_diff", "p_{T} spectrum of jets (#beta = " + (TString)ss.str() + ")", 50, -200, 400);
     TH1* twojet_bothjets_phi_diff = new TH1F("twojet_bothjets_phi_diff", "#phi spectrum of jets (#beta = " + (TString)ss.str() + ")", 16, 0, 3.2);
-    TH2* twojet_bothjets_perp_phi_diff = new TH2F("twojet_bothjets_perp_phi_diff", "2d plot of phi diff vs perp diff", 30, -200, 400, 32, 0, 3.2);
+    TH2* twojet_bothjets_perp_phi_diff = new TH2F("twojet_bothjets_perp_phi_diff", "2d plot of phi Diff. vs perp Diff.", 30, -200, 400, 32, 0, 3.2);
     TH1* twojet_bothjets_perp_diff_wta = new TH1F("twojet_bothjets_perp_diff_wta", "p_{T} spectrum of jets (#beta = " + (TString)ss.str() + ")", 50, -200, 400);
     TH1* twojet_bothjets_phi_diff_wta = new TH1F("twojet_bothjets_phi_diff_wta", "#phi spectrum of jets (#beta = " + (TString)ss.str() + ")", 16, 0, 3.2);
 
@@ -431,14 +444,14 @@ int main(int argc, char* argv[]) {
     // TH1* threejet_secondjet_phi_njet = new TH1F("threejet_secondjet_phi_njet", "Azimuth of threejet_second Hardest Jet (#beta = " + (TString)ss.str() + ")", 32, 0, 6.4);
 
     TH1* threejet_thirdjet_mass_njet = new TH1F("threejet_thirdjet_mass_njet", "Mass of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 50, 0, 200);
-    TH1* threejet_thirdjet_perp_njet = new TH1F("threejet_thirdjet_perp_njet", "p_{T} of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 50, 0, 750);
+    TH1* threejet_thirdjet_perp_njet = new TH1F("threejet_thirdjet_perp_njet", "p_{T} of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 50, 0, 500);
     TH1* threejet_thirdjet_phi_njet = new TH1F("threejet_thirdjet_phi_njet", "Azimuth of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 32, 0, 6.4);
 
     TH1* threejet_invmass_diff = new TH1F("threejet_invmass_diff", "Invariant Mass of three reconstructed jets (#beta = " + (TString)ss.str() + ")", 50, 0, 1500);
     TH1* threejet_thirdjet_mass_diff = new TH1F("threejet_thirdjet_mass_diff", "Mass of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 50, -50, 50);
     TH1* threejet_thirdjet_perp_diff = new TH1F("threejet_thirdjet_perp_diff", "p_{T} of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 50, -200, 200);
     TH1* threejet_thirdjet_phi_diff = new TH1F("threejet_thirdjet_phi_diff", "Azimuth of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 16, 0, 3.2);
-    TH1* threejet_thirdjet_mainjet_phi_diff = new TH1F("threejet_thirdjet_mainjet_phi_diff", "Azimuth of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 16, 0, 3.2);
+    TH1* threejet_thirdjet_mainjet_phi_diff = new TH1F("threejet_thirdjet_mainjet_phi_diff", "Azimuth of threejet_third Hardest Jet (#beta = " + (TString)ss.str() + ")", 12, 0, 3);
     TH2* threejet_thirdjet_perp_phi_diff = new TH2F("threejet_thirdjet_perp_phi_diff", "stuff", 40, -200, 200, 32, 0, 3.2);
     // TH2* threejet_thirdjet_perp_phi_diff = new TH2F("threejet_thirdjet_perp_phi_diff", "stuff", 16, 0, 3.2,50, -200, 200);
 
@@ -513,7 +526,7 @@ int main(int argc, char* argv[]) {
   }
 
   TH1* akt_jet_mass = new TH1F("akt_jet_mass", "Mass of individual akt jet", 50, 0, 500);
-  TH1* akt_jet_perp = new TH1F("akt_jet_perp", "Perp of individual akt jet", 50, 0, 1200);
+  TH1* akt_jet_perp = new TH1F("akt_jet_perp", "Perp of individual akt jet", 50, 0, 1000);
   TH1* akt_jet_phi = new TH1F("akt_jet_phi", "Phi of individual akt jet", 32, 0, 6.4);
   TH1* akt_jet_eta = new TH1F("akt_jet_eta", "Eta of individual akt jet", 50, -5, 5);
 
@@ -527,10 +540,11 @@ int main(int argc, char* argv[]) {
   TH1* jet_ptspectrum_akt = new TH1F("jet_ptspectrum_akt", "p_{T} spectrum of jets", 50, 0, 1000);
   TH1* jet_phispectrum_akt = new TH1F("jet_phispectrum_akt", "#phi spectrum of jets", 32, 0, 3.2);
 
-  TH1* area_1jet_akt = new TH1F("area_1jet_akt", "area of akt jet", 100, 0.5, 2.5);
-  TH1* area_1jet_akt_wta = new TH1F("area_1jet_akt_wta", "area of akt_wta jet", 100, 0.5, 2.5);
-  TH1* area_3jet_akt = new TH1F("area_3jet_akt", "area of akt jet", 100, 0.5, 2.5);
-  TH1* area_3jet_akt_wta = new TH1F("area_3jet_akt_wta", "area of akt_wta jet", 100, 0.5, 2.5);
+  TH1* area_1jet_akt = new TH1F("area_1jet_akt", "area of akt jet", 40, 0.4, 1.2);
+  TH1* area_1jet_akt_wta = new TH1F("area_1jet_akt_wta", "area of akt_wta jet", 40, 0.4, 1.2);
+  TH1* area_2jet_akt = new TH1F("area_2jet_akt", "area of akt jet", 40, 0.4, 1.2);
+  TH1* area_3jet_akt = new TH1F("area_3jet_akt", "area of akt jet", 40, 0.4, 1.2);
+  TH1* area_3jet_akt_wta = new TH1F("area_3jet_akt_wta", "area of akt_wta jet", 40, 0.4, 1.2);
 
   TH1* zprime_invmass_akt_wta = new TH1F("zprime_invmass_akt_wta", "Invariant Mass of Z'", 50, 0, 1500);
   TH1* zprime_invperp_akt_wta = new TH1F("zprime_invperp_akt_wta", "p_{T} of recombined dijet", 50, 0, 1000);
@@ -547,9 +561,9 @@ int main(int argc, char* argv[]) {
 
   TH1* threejet_invmass_akt = new TH1F("threejet_invmass_akt", "Invariant mass of three akt jets", 50, 0, 1500);
   TH1* threejet_thirdjet_mass_akt = new TH1F("thirdjet_mass_akt", "Mass of third akt jet", 50, 0, 500);
-  TH1* threejet_thirdjet_perp_akt = new TH1F("thirdjet_perp_akt", "p_{T} of third akt jet", 50, 0, 750);
+  TH1* threejet_thirdjet_perp_akt = new TH1F("thirdjet_perp_akt", "p_{T} of third akt jet", 50, 0, 500);
   TH1* threejet_thirdjet_phi_akt = new TH1F("thirdjet_phi_akt", "Azimuth of third akt jet", 32, 0, 6.4);
-  TH1* threejet_thirdjet_mainjet_phi_diff_akt = new TH1F("threejet_thirdjet_mainjet_phi_diff_akt", "Azimuth of third akt jet", 16, 0, 3.2);
+  TH1* threejet_thirdjet_mainjet_phi_diff_akt = new TH1F("threejet_thirdjet_mainjet_phi_diff_akt", "Azimuth of third akt jet", 12, 0, 3);
 
   TH1* threejet_invmass_akt_wta = new TH1F("threejet_invmass_akt_wta", "Invariant mass of three akt (WTA) jets", 50, 0, 1500);
   TH1* threejet_thirdjet_mass_akt_wta = new TH1F("thirdjet_mass_akt_wta", "Mass of third akt_wta jet", 50, 0, 500);
@@ -557,9 +571,10 @@ int main(int argc, char* argv[]) {
   TH1* threejet_thirdjet_phi_akt_wta = new TH1F("thirdjet_phi_akt_wta", "Azimuth of third akt_wta jet", 32, 0, 6.4);
 
   // Fastjet input (different inputs for quark vs gluon)
+  vector <PseudoJet> fjInputs_uncut;
   vector <PseudoJet> fjInputs;
 
-  double Rparam = 0.6;
+  double Rparam = 0.5;
   Strategy strategy = Best;
   const JetDefinition::Recombiner *recombScheme_akt_wta = new WinnerTakeAllRecombiner();
   RecombinationScheme recombScheme_akt = E_scheme;
@@ -572,6 +587,7 @@ int main(int argc, char* argv[]) {
     if (!pythia.next()) continue;
 
     // Reset Fastjet input
+    fjInputs_uncut.resize(0);
     fjInputs.resize(0);
 
     //store particle as input for Fastjet
@@ -581,9 +597,11 @@ int main(int argc, char* argv[]) {
 
       //Exclude neutrinos and leptons, which should only appear as final products of bosons, which should not be in the jets
       if (pythia.event[i].idAbs() == 12 || pythia.event[i].idAbs() == 14 || pythia.event[i].idAbs() == 16) continue;
-      if (pythia.event[i].idAbs() == 11 || pythia.event[i].idAbs() == 13 || pythia.event[i].idAbs() == 15) continue;
+      // if (pythia.event[i].idAbs() == 11 || pythia.event[i].idAbs() == 13 || pythia.event[i].idAbs() == 15) continue;
       PseudoJet fj_particle = pythia.event[i];
-      fjInputs.push_back(fj_particle);
+
+      // if (abs(fj_particle.eta()) > 3.0) continue;
+      fjInputs_uncut.push_back(fj_particle);
     }
 
     TH2F *event_display = new TH2F("event_display", "Event Display", 60, -5, 5, 60, 0, 6.4);
@@ -592,11 +610,18 @@ int main(int argc, char* argv[]) {
     TH2F *akt_jets_display = new TH2F("akt_jets_display", "anti-k_{T} Jets", 300, -5, 5, 300, 0, 6.4);
     TH2F *njet_jets_display = new TH2F("njet_jets_display", "N-jettiness Jets", 300, -5, 5, 300, 0, 6.4);
 
+    // cout << iEvent << endl;
+    if (iEvent % 10 == 0) cout << iEvent << endl;
+
+    Selector eta_selector = SelectorAbsEtaMax(3.0);
+
+    fjInputs = eta_selector(fjInputs_uncut);
+
     for (int i_part = 0; i_part < fjInputs.size(); i_part++) {
       event_display->Fill(fjInputs[i_part].eta(), fjInputs[i_part].phi(), fjInputs[i_part].perp());
     }
     
-    double ghost_maxrap = 5.0;
+    double ghost_maxrap = 3.0;
 
     // Double_t ghost_perp = 0.001;
     // Double_t n_ghosts = 50;
@@ -623,7 +648,6 @@ int main(int argc, char* argv[]) {
     sortedJets = sorted_by_pt(inclusiveJets);
 
     //Cut on jets within eta range
-    Selector eta_selector = SelectorAbsEtaMax(5.0);
     centralJets = eta_selector(sortedJets);
 
     //FIRST WE COMPARE 1-JETTINESS TO THE HARDEST anti-k_{T} JET AND QUANTIFY SIMILARITIES/DIFFERENCES
@@ -650,6 +674,7 @@ int main(int argc, char* argv[]) {
     for (int i_jet = 0; i_jet < hardest_twojets.size(); i_jet++) {
       big_jet = join(big_jet, hardest_twojets[i_jet]);
       jet_ptspectrum_akt->Fill(hardest_twojets[i_jet].perp());
+      area_2jet_akt->Fill(hardest_twojets[i_jet].area());
     }
     if (hardest_twojets.size() == 2) {
       jet_phispectrum_akt->Fill(abs(calcDphi(hardest_twojets[0], hardest_twojets[1])));
@@ -674,8 +699,10 @@ int main(int argc, char* argv[]) {
 
     threejet_big_jet_akt = join(hardest_twojets[0], hardest_twojets[1]);
 
-    if (third_jet.delta_R(hardest_twojets[0]) < third_jet.delta_R(hardest_twojets[1])) threejet_thirdjet_mainjet_phi_diff_akt->Fill(abs(calcDphi(hardest_twojets[0], third_jet)));
-    else threejet_thirdjet_mainjet_phi_diff_akt->Fill(abs(calcDphi(hardest_twojets[1], third_jet)));
+    // if (third_jet.delta_R(hardest_twojets[0]) < third_jet.delta_R(hardest_twojets[1])) threejet_thirdjet_mainjet_phi_diff_akt->Fill(abs(calcDphi(hardest_twojets[0], third_jet)));
+    // else threejet_thirdjet_mainjet_phi_diff_akt->Fill(abs(calcDphi(hardest_twojets[1], third_jet)));
+    if (third_jet.delta_R(hardest_twojets[0]) < third_jet.delta_R(hardest_twojets[1])) threejet_thirdjet_mainjet_phi_diff_akt->Fill(hardest_twojets[0].delta_R(third_jet));
+    else threejet_thirdjet_mainjet_phi_diff_akt->Fill(hardest_twojets[1].delta_R(third_jet));
 
     // for (int i_jet = 0; i_jet < hardest_threejets.size(); i_jet++) {
     //   threejet_big_jet_akt = join(threejet_big_jet_akt, hardest_threejets[i_jet]);
@@ -762,7 +789,7 @@ int main(int argc, char* argv[]) {
     threejet_thirdjet_perp_akt_wta->Fill(third_jet_wta.perp());
     threejet_thirdjet_phi_akt_wta->Fill(third_jet_wta.phi());
 
-    // cout << endl << iEvent << endl << endl;
+    // cout << iEvent << endl;
 
     for (unsigned int B = 0; B < betalist.size(); B++) {
 
@@ -775,58 +802,43 @@ int main(int argc, char* argv[]) {
 
       const JetDefinition::Recombiner *recombScheme;
       recombScheme = new GeneralERecombiner(delta);
-      // if (beta > 1) recombScheme = new GeneralERecombiner((double)1/(beta - 1));
-      // else recombScheme = new WinnerTakeAllRecombiner();
 
-      UnnormalizedCutoffMeasure measure_function = UnnormalizedCutoffMeasure(beta, Rparam);
-      // NormalizedCutoffMeasure measure_function = NormalizedCutoffMeasure(beta, Rparam, Rparam);
+      // UnnormalizedCutoffMeasure measure_function = UnnormalizedCutoffMeasure(beta, Rparam);
+      XConeCutoffMeasure measure_function = XConeCutoffMeasure(beta, Rparam);
+      XConeCutoffMeasure measure_function_xcone = XConeCutoffMeasure(beta, Rparam);
+      // UnnormalizedCutoffMeasure measure_function = UnnormalizedCutoffMeasure(beta, Rparam);
+      // UnnormalizedCutoffMeasure measure_function_xcone = UnnormalizedCutoffMeasure(beta, Rparam);
 
-      AxesStruct *axes_finder;
-      // AxesStruct *axes_finder = new AxesStruct(Comb_WTA_GenKT_Axes(power, Rparam, 2));
-      // AxesStruct *axes_finder = new AxesStruct(WTA_KT_Axes());
-      // AxesStruct* axes_finder = new AxesStruct(GenRecomb_GenKT_Axes(power, delta, Rparam));
-      if (beta < 1 || beta > 3) {
-        // axes_finder = new AxesStruct(Manual_Axes());
-        axes_finder = new AxesStruct(OnePass_GenRecomb_GenKT_Axes(power, delta, Rparam));
-      }
-      else {
-        // axes_finder = new AxesStruct(Manual_Axes());
-        axes_finder = new AxesStruct(GenRecomb_GenKT_Axes(power, delta, Rparam));
-      }
+      AxesStruct *axes_finder = new AxesStruct(GenRecomb_GenKT_Axes(delta, power, Rparam));
 
-      // Manual_Axes axes_finder = Manual_Axes();
-
-      Strategy strategy = Best;
-      // const JetDefinition::Recombiner *recombScheme = new GeneralERecombiner(delta);
-      // const JetDefinition::Recombiner *recombScheme = new WinnerTakeAllRecombiner();
-      JetDefinition *jetDef = new JetDefinition(genkt_algorithm, Rparam, power, recombScheme, strategy);
-      ClusterSequence clustSeq(fjInputs, *jetDef);
-      vector<PseudoJet> exclusive_1jet_start = clustSeq.exclusive_jets(2);
-      vector<PseudoJet> exclusive_1jet = findMinAxes(fjInputs, exclusive_1jet_start, 1, beta, Rparam);
-
-      // OnePass_WTA_KT_Axes axes_finder = OnePass_WTA_KT_Axes();
+      AxesStruct *axes_finder_onepass;
+      if (beta >= 1 && beta <= 3) axes_finder_onepass = new AxesStruct(OnePass_GenRecomb_GenKT_Axes(delta, power, Rparam));
+      else axes_finder_onepass = axes_finder;
 
       NjettinessPlugin njet_plugin_1jet(1, axes_finder->def(), measure_function);
       JetDefinition njet_def_1jet(&njet_plugin_1jet);
-      // njet_plugin_1jet.setAxes(exclusive_1jet);
+      // ClusterSequenceArea njet_conical_cluster_1jet_area(fjInputs, njet_def_1jet, area_def);
+      // vector<PseudoJet> njet_1jet = njet_cluster_conical_1jet_area.inclusive_jets();
 
-      ClusterSequenceArea njet_cluster_1jet_area(fjInputs, njet_def_1jet, area_def);
-      ClusterSequence njet_cluster_1jet(fjInputs, njet_def_1jet);
-      const NjettinessExtras *extras_1jet = njettiness_extras(njet_cluster_1jet);
-      vector<PseudoJet> njet_1jet = njet_cluster_1jet_area.inclusive_jets();
+      ClusterSequence njet_cluster_conical_1jet(fjInputs, njet_def_1jet);
+      const NjettinessExtras *extras_njet_conical_1jet = njettiness_extras(njet_cluster_conical_1jet);
+      vector<PseudoJet> njet_conical_axes_1jet = extras_njet_conical_1jet->axes();
+      double tau1_nopass = extras_njet_conical_1jet->totalTau();
+      // vector<PseudoJet> njet_1jet_conical = njet_cluster_conical_1jet.inclusive_jets();
 
-      NjettinessPlugin njet_plugin_manual_1jet(1, axes_finder->def(), measure_function);
-      JetDefinition njet_def_manual_1jet(&njet_plugin_manual_1jet);
+      NjettinessPlugin njet_plugin_xcone_1jet(1, axes_finder_onepass->def(), measure_function_xcone);
+      JetDefinition njet_def_xcone_1jet(&njet_plugin_xcone_1jet);
+      ClusterSequence njet_cluster_1jet(fjInputs, njet_def_xcone_1jet);
+      const NjettinessExtras *extras_njet_xcone_1jet = njettiness_extras(njet_cluster_1jet);
+      // double tau1_onepass = extras_njet_xcone_1jet->totalTau();
+      vector<PseudoJet> njet_1jet = njet_cluster_1jet.inclusive_jets();
+      vector<PseudoJet> njet_1jet_axes = extras_njet_xcone_1jet->axes();
 
-      // if (B == 0) {
-      //   for (int a = 0; a < njet_1jet.size(); a++) {
-      //     axes_njet_display->Fill(njet_1jet[a].eta(), njet_1jet[a].phi());
-      //     vector<PseudoJet> constituents = njet_1jet[a].constituents();
-      //     for (int i_const = 0; i_const < constituents.size(); i_const++) {
-      //       njet_jets_display->Fill(constituents[i_const].eta(), constituents[i_const].phi());
-      //     }          
-      //   }
-      // }
+      NjettinessPlugin njet_plugin_xcone_1jet_area(1, Manual_Axes(), measure_function_xcone);
+      JetDefinition njet_def_xcone_1jet_area(&njet_plugin_xcone_1jet_area);
+      njet_plugin_xcone_1jet_area.setAxes(njet_1jet_axes);
+      ClusterSequenceArea njet_cluster_1jet_area(fjInputs, njet_def_xcone_1jet_area, area_def);
+      vector<PseudoJet> njet_1jet_area = njet_cluster_1jet_area.inclusive_jets();
 
       if (njet_1jet.size() == 1) {
 
@@ -841,17 +853,16 @@ int main(int argc, char* argv[]) {
         njet_jet_phi->Fill(njet_1jet[0].phi());
         njet_jet_eta->Fill(njet_1jet[0].eta());
 
-        double area_jet_njet = njet_1jet[0].area();
+        double area_jet_njet = njet_1jet_area[0].area();
         area_1jet_njet->Fill(area_jet_njet);
-
 
         if (hardest_jet.size() == 1) {
           // njet_plugin_manual_1jet.setAxes(hardest_jet);
-          ClusterSequence njet_cluster_manual_1jet(fjInputs, njet_def_manual_1jet);
-          const NjettinessExtras *extras_manual_1jet = njettiness_extras(njet_cluster_manual_1jet);
+          // ClusterSequence njet_cluster_manual_1jet(fjInputs, njet_def_manual_1jet);
+          // const NjettinessExtras *extras_manual_1jet = njettiness_extras(njet_cluster_manual_1jet);
 
-          TH1* tau1_diff = (TH1*)tau1_diff_hists.At(B);
-          tau1_diff->Fill(extras_manual_1jet->totalTau() - extras_1jet->totalTau());
+          // TH1* tau1_diff = (TH1*)tau1_diff_hists.At(B);
+          // tau1_diff->Fill(extras_manual_1jet->totalTau() - extras_1jet->totalTau());
 
           TH1* jetmass_diff = (TH1*)jetmass_diff_hists.At(B);
           TH1* jetperp_diff = (TH1*)jetperp_diff_hists.At(B);
@@ -874,11 +885,11 @@ int main(int argc, char* argv[]) {
 
         if (hardest_jet_wta.size() == 1) {
           // njet_plugin_manual_1jet.setAxes(hardest_jet_wta);
-          ClusterSequence njet_cluster_manual_1jet(fjInputs, njet_def_manual_1jet);
-          const NjettinessExtras *extras_manual_1jet = njettiness_extras(njet_cluster_manual_1jet);
+          // ClusterSequence njet_cluster_manual_1jet(fjInputs, njet_def_manual_1jet);
+          // const NjettinessExtras *extras_manual_1jet = njettiness_extras(njet_cluster_manual_1jet);
 
-          TH1* tau1_diff_wta = (TH1*)tau1_diff_wta_hists.At(B);
-          tau1_diff_wta->Fill(extras_manual_1jet->totalTau() - extras_1jet->totalTau());
+          // TH1* tau1_diff_wta = (TH1*)tau1_diff_wta_hists.At(B);
+          // tau1_diff_wta->Fill(extras_manual_1jet->totalTau() - extras_1jet->totalTau());
 
           TH1* jetmass_diff_wta = (TH1*)jetmass_diff_wta_hists.At(B);
           TH1* jetperp_diff_wta = (TH1*)jetperp_diff_wta_hists.At(B);
@@ -899,25 +910,42 @@ int main(int argc, char* argv[]) {
       }
 
       // NEXT WE LOOK AT 2-JETTINESS
-      vector<PseudoJet> exclusive_2jets_start = clustSeq.exclusive_jets(3);
-      vector<PseudoJet> exclusive_2jets = findMinAxes(fjInputs, exclusive_2jets_start, 2, beta, Rparam);
-
-      // vector<PseudoJet> exclusive_2jets = clustSeq.exclusive_jets(2);
       //Use Njettiness algorithm for comparison
+
       NjettinessPlugin njet_plugin(2, axes_finder->def(), measure_function);
       JetDefinition njet_def(&njet_plugin);
-      // njet_plugin.setAxes(exclusive_2jets);
-      ClusterSequence njet_cluster(fjInputs, njet_def);
-      const NjettinessExtras *extras = njettiness_extras(njet_cluster);
-      vector<PseudoJet> njet_jets = extras->jets();
+
+      ClusterSequence njet_cluster_conical_2jets(fjInputs, njet_def);
+      const NjettinessExtras *extras_njet_conical_2jets = njettiness_extras(njet_cluster_conical_2jets);
+      vector<PseudoJet> njet_conical_axes_2jets = extras_njet_conical_2jets->axes();
+      // vector<PseudoJet> njet_jets_conical = njet_cluster_2jets_conical.inclusive_jets();
+      double tau2_nopass = extras_njet_conical_2jets->totalTau();
+
+      NjettinessPlugin njet_plugin_xcone_2jets(2, axes_finder_onepass->def(), measure_function_xcone);
+      JetDefinition njet_def_xcone_2jets(&njet_plugin_xcone_2jets);
+      ClusterSequence njet_cluster_2jets(fjInputs, njet_def_xcone_2jets);
+      const NjettinessExtras *extras_njet_xcone_2jets = njettiness_extras(njet_cluster_2jets);
+      // double tau2_onepass = extras_njet_xcone_2jets->totalTau();
+      vector<PseudoJet> njet_jets = njet_cluster_2jets.inclusive_jets();
+      vector<PseudoJet> njet_jets_axes = extras_njet_xcone_2jets->axes();
+
+      NjettinessPlugin njet_plugin_xcone_2jets_area(2, Manual_Axes(), measure_function_xcone);
+      JetDefinition njet_def_xcone_2jets_area(&njet_plugin_xcone_2jets_area);
+      njet_plugin_xcone_2jets_area.setAxes(njet_jets_axes);
+      ClusterSequenceArea njet_cluster_2jets_area(fjInputs, njet_def_xcone_2jets_area, area_def);
+      // double tau2_onepass = extras_njet_xcone_2jets_area->totalTau();
+      vector<PseudoJet> njet_jets_area = njet_cluster_2jets_area.inclusive_jets();
+
+      // cout << tau2_nopass - tau2_onepass << endl;
 
       PseudoJet big_jet_njet(0,0,0,0);
-      // cout << extras->totalTau() << " ";
+
       for (int i_jet = 0; i_jet < njet_jets.size(); i_jet++) {
-        // cout << njet_jets[i_jet].eta() << " " << njet_jets[i_jet].phi() << endl;
         big_jet_njet = join(big_jet_njet, njet_jets[i_jet]);
         TH1* jet_ptspectrum_njet = (TH1*)jet_ptspectrum_njet_hists.At(B);
+        TH1* area_2jet_njet = (TH1*)area_2jet_njet_hists.At(B);
         jet_ptspectrum_njet->Fill(njet_jets[i_jet].perp());
+        area_2jet_njet->Fill(njet_jets_area[i_jet].area());
       }
       if (njet_jets.size() == 2) {
         TH1* jet_phispectrum_njet = (TH1*)jet_phispectrum_njet_hists.At(B);
@@ -948,31 +976,33 @@ int main(int argc, char* argv[]) {
       zprime_invmass_njet->Fill(big_jet_njet.m());
       zprime_invperp_njet->Fill(big_jet_njet.perp());
 
-      NjettinessPlugin njet_plugin_manual(2, axes_finder->def(), measure_function);
-      JetDefinition njet_def_manual(&njet_plugin_manual);
+      // NjettinessPlugin njet_plugin_manual(2, axes_finder->def(), measure_function);
+      // JetDefinition njet_def_manual(&njet_plugin_manual);
       if (hardest_twojets.size() == 2) {
         // njet_plugin_manual.setAxes(hardest_twojets);
-        ClusterSequence njet_cluster_manual(fjInputs, njet_def_manual);
-        const NjettinessExtras *extras_manual = njettiness_extras(njet_cluster_manual);
-        vector<PseudoJet> njet_jets_manual = extras_manual->jets();
+        // ClusterSequence njet_cluster_manual(fjInputs, njet_def_manual);
+        // const NjettinessExtras *extras_manual = njettiness_extras(njet_cluster_manual);
+        // vector<PseudoJet> njet_jets_manual = extras_manual->jets();
 
-
-        TH1* tau2_diff = (TH1*)tau2_diff_hists.At(B);
-        tau2_diff->Fill(extras_manual->totalTau() - extras->totalTau());
+        // TH1* tau2_diff = (TH1*)tau2_diff_hists.At(B);
+        // tau2_diff->Fill(extras_manual->totalTau() - extras->totalTau());
 
         TH1* jet_phispectrum_diff = (TH1*)jet_phispectrum_diff_hists.At(B);
         TH1* twojet_bothjets_perp_diff = (TH1*)twojet_bothjets_perp_diff_hists.At(B);
         TH1* twojet_bothjets_phi_diff = (TH1*)twojet_bothjets_phi_diff_hists.At(B);
         TH1* twojet_bothjets_perp_phi_diff = (TH1*)twojet_bothjets_perp_phi_diff_hists.At(B);
 
-        PseudoJet closerJet0 = (njet_jets[0].delta_R(hardest_twojets[0]) < njet_jets[1].delta_R(hardest_twojets[0])) ? njet_jets[0] : njet_jets[1];
-        PseudoJet closerJet1 = (njet_jets[0].delta_R(hardest_twojets[1]) < njet_jets[1].delta_R(hardest_twojets[1])) ? njet_jets[0] : njet_jets[1];
+        // PseudoJet closerJet0 = (njet_jets[0].delta_R(hardest_twojets[0]) < njet_jets[1].delta_R(hardest_twojets[0])) ? njet_jets[0] : njet_jets[1];
+        // PseudoJet closerJet1 = (njet_jets[0].delta_R(hardest_twojets[1]) < njet_jets[1].delta_R(hardest_twojets[1])) ? njet_jets[0] : njet_jets[1];
 
-        twojet_bothjets_perp_diff->Fill(hardest_twojets[0].perp() - closerJet0.perp());
+        vector<PseudoJet> closerJet0 = jet_selector(njet_jets);
+        PseudoJet closerJet1 = (abs(njet_jets[0].perp() - closerJet0[0].perp()) < abs(njet_jets[1].perp() - closerJet0[0].perp())) ? njet_jets[1] : njet_jets[0];
+
+        twojet_bothjets_perp_diff->Fill(hardest_twojets[0].perp() - closerJet0[0].perp());
         twojet_bothjets_perp_diff->Fill(hardest_twojets[1].perp() - closerJet1.perp());
-        twojet_bothjets_phi_diff->Fill(calcDphi(hardest_twojets[0], closerJet0));
-        twojet_bothjets_phi_diff->Fill(calcDphi(hardest_twojets[1], closerJet1));
-        twojet_bothjets_perp_phi_diff->Fill(hardest_twojets[0].perp() - closerJet0.perp(), abs(calcDphi(hardest_twojets[0], closerJet0)));
+        twojet_bothjets_phi_diff->Fill(hardest_twojets[0].delta_R(closerJet0[0]));
+        twojet_bothjets_phi_diff->Fill(hardest_twojets[1].delta_R(closerJet1));
+        twojet_bothjets_perp_phi_diff->Fill(hardest_twojets[0].perp() - closerJet0[0].perp(), abs(calcDphi(hardest_twojets[0], closerJet0[0])));
         twojet_bothjets_perp_phi_diff->Fill(hardest_twojets[1].perp() - closerJet1.perp(), abs(calcDphi(hardest_twojets[1], closerJet1)));
 
         double njet_phi_diff = abs(calcDphi(njet_jets[0], njet_jets[1]));
@@ -991,8 +1021,8 @@ int main(int argc, char* argv[]) {
 
         twojet_bothjets_perp_diff_wta->Fill(hardest_twojets_wta[0].perp() - closerJet0.perp());
         twojet_bothjets_perp_diff_wta->Fill(hardest_twojets_wta[1].perp() - closerJet1.perp());
-        twojet_bothjets_phi_diff_wta->Fill(calcDphi(hardest_twojets_wta[0], closerJet0));
-        twojet_bothjets_phi_diff_wta->Fill(calcDphi(hardest_twojets_wta[1], closerJet1));
+        twojet_bothjets_phi_diff_wta->Fill(hardest_twojets_wta[0].delta_R(closerJet0));
+        twojet_bothjets_phi_diff_wta->Fill(hardest_twojets_wta[1].delta_R(closerJet1));
 
       }
 
@@ -1004,23 +1034,44 @@ int main(int argc, char* argv[]) {
 
       // THEN WE LOOK AT 3-JETTINESS
 
-      vector<PseudoJet> exclusive_3jets_start = clustSeq.exclusive_jets(4);
-      vector<PseudoJet> exclusive_3jets = findMinAxes(fjInputs, exclusive_3jets_start, 3, beta, Rparam);
+      // vector<PseudoJet> exclusive_3jets_start = clustSeq.exclusive_jets(3);
+      // vector<PseudoJet> exclusive_3jets = findMinAxes(fjInputs, exclusive_3jets_start, 3, beta, Rparam);
 
       NjettinessPlugin njet_plugin_threejets(3, axes_finder->def(), measure_function);
       JetDefinition njet_def_threejets(&njet_plugin_threejets);
       // njet_plugin_threejets.setAxes(exclusive_3jets);
-      ClusterSequenceArea njet_cluster_threejets_area(fjInputs, njet_def_threejets, area_def);
-      ClusterSequence njet_cluster_threejets(fjInputs, njet_def_threejets);
-      const NjettinessExtras *extras_threejets = njettiness_extras(njet_cluster_threejets);
-      vector<PseudoJet> njet_threejets = njet_cluster_threejets_area.inclusive_jets();
+      // ClusterSequenceArea njet_cluster_threejets_area(fjInputs, njet_def_threejets, area_def);
+      // vector<PseudoJet> njet_threejets = njet_cluster_threejets_area.inclusive_jets();
+      ClusterSequence njet_cluster_conical_3jets(fjInputs, njet_def_threejets);
+      const NjettinessExtras *extras_njet_conical_3jets = njettiness_extras(njet_cluster_conical_3jets);
+      vector<PseudoJet> njet_conical_axes_3jets = extras_njet_conical_3jets->axes();
+      double tau3_nopass = extras_njet_conical_3jets->totalTau();
+      // vector<PseudoJet> njet_threejets_conical = njet_cluster_threejets.inclusive_jets();
+
+      NjettinessPlugin njet_plugin_xcone_threejets(3, axes_finder_onepass->def(), measure_function_xcone);
+      JetDefinition njet_def_xcone_threejets(&njet_plugin_xcone_threejets);
+      ClusterSequence njet_cluster_threejets(fjInputs, njet_def_xcone_threejets);
+      const NjettinessExtras *extras_njet_xcone_3jets = njettiness_extras(njet_cluster_threejets);
+      // double tau3_onepass = extras_njet_xcone_3jets->totalTau();
+      vector<PseudoJet> njet_threejets = njet_cluster_threejets.inclusive_jets();
+      vector<PseudoJet> njet_threejets_axes = extras_njet_xcone_3jets->axes();
+
+      NjettinessPlugin njet_plugin_xcone_threejets_area(3, Manual_Axes(), measure_function_xcone);
+      JetDefinition njet_def_xcone_threejets_area(&njet_plugin_xcone_threejets_area);
+      njet_plugin_xcone_threejets_area.setAxes(njet_threejets_axes);
+      ClusterSequenceArea njet_cluster_threejets_area(fjInputs, njet_def_xcone_threejets_area, area_def);
+      vector<PseudoJet> njet_threejets_area = njet_cluster_threejets_area.inclusive_jets();
+
+      // cout << tau3_nopass - tau3_onepass << endl;
 
       PseudoJet threejet_big_jet_njet(0,0,0,0);
       vector<PseudoJet> sorted_njet_threejets = sorted_by_pt(njet_threejets);
       PseudoJet third_jet_njet = sorted_njet_threejets[2];
 
+      vector<PseudoJet> sorted_njet_threejets_area = sorted_by_pt(njet_threejets_area);
+      PseudoJet third_jet_njet_area = sorted_njet_threejets_area[2];
 
-      double area_thirdjet_njet = third_jet_njet.area();
+      double area_thirdjet_njet = third_jet_njet_area.area();
       TH1* area_3jet_njet = (TH1*)area_3jet_njet_hists.At(B);
       TH1* area_3jet_diff = (TH1*)area_3jet_diff_hists.At(B);
       TH1* area_3jet_diff_wta = (TH1*)area_3jet_diff_wta_hists.At(B);
@@ -1082,35 +1133,33 @@ int main(int argc, char* argv[]) {
       threejet_thirdjet_perp_diff_wta->Fill(third_jet_wta.perp() - sorted_njet_threejets[2].perp());
       threejet_thirdjet_phi_diff_wta->Fill(calcDphi(third_jet_wta, sorted_njet_threejets[2]));
 
+      if (third_jet_njet.delta_R(njet_jets[0]) < third_jet_njet.delta_R(njet_jets[1])) threejet_thirdjet_mainjet_phi_diff->Fill(njet_jets[0].delta_R(third_jet_njet));
+      else threejet_thirdjet_mainjet_phi_diff->Fill(njet_jets[1].delta_R(third_jet_njet));
 
-      if (third_jet_njet.delta_R(njet_jets[0]) < third_jet_njet.delta_R(njet_jets[1])) threejet_thirdjet_mainjet_phi_diff->Fill(abs(calcDphi(njet_jets[0],third_jet_njet)));
-      else threejet_thirdjet_mainjet_phi_diff->Fill(abs(calcDphi(njet_jets[1],third_jet_njet)));
-
-
-      NjettinessPlugin njet_plugin_manual_3jets(3, axes_finder->def(), measure_function);
-      JetDefinition njet_def_manual_3jets(&njet_plugin_manual_3jets);
-      if (hardest_threejets.size() == 3) {
+      // NjettinessPlugin njet_plugin_manual_3jets(3, axes_finder->def(), measure_function);
+      // JetDefinition njet_def_manual_3jets(&njet_plugin_manual_3jets);
+      // if (hardest_threejets.size() == 3) {
         // njet_plugin_manual_3jets.setAxes(hardest_threejets);
-        ClusterSequence njet_cluster_manual_3jets(fjInputs, njet_def_manual_3jets);
-        const NjettinessExtras *extras_manual_3jets = njettiness_extras(njet_cluster_manual_3jets);
-        vector<PseudoJet> njet_jets_manual_3jets = extras_manual_3jets->jets();
+        // ClusterSequence njet_cluster_manual_3jets(fjInputs, njet_def_manual_3jets);
+        // const NjettinessExtras *extras_manual_3jets = njettiness_extras(njet_cluster_manual_3jets);
+        // vector<PseudoJet> njet_jets_manual_3jets = extras_manual_3jets->jets();
 
-        TH1* tau3_diff = (TH1*)tau3_diff_hists.At(B);
-        tau3_diff->Fill(extras_manual_3jets->totalTau() - extras_threejets->totalTau());
-      }
+        // TH1* tau3_diff = (TH1*)tau3_diff_hists.At(B);
+        // tau3_diff->Fill(extras_manual_3jets->totalTau() - extras_threejets->totalTau());
+      // }
 
 
-      NjettinessPlugin njet_plugin_manual_wta_3jets(3, axes_finder->def(), measure_function);
-      JetDefinition njet_def_manual_wta_3jets(&njet_plugin_manual_wta_3jets);
-      if (hardest_threejets.size() == 3) {
+      // NjettinessPlugin njet_plugin_manual_wta_3jets(3, axes_finder->def(), measure_function);
+      // JetDefinition njet_def_manual_wta_3jets(&njet_plugin_manual_wta_3jets);
+      // if (hardest_threejets.size() == 3) {
         // njet_plugin_manual_wta_3jets.setAxes(hardest_threejets);
-        ClusterSequence njet_cluster_manual_wta_3jets(fjInputs, njet_def_manual_wta_3jets);
-        const NjettinessExtras *extras_manual_wta_3jets = njettiness_extras(njet_cluster_manual_wta_3jets);
-        vector<PseudoJet> njet_jets_manual_wta_3jets = extras_manual_wta_3jets->jets();
+        // ClusterSequence njet_cluster_manual_wta_3jets(fjInputs, njet_def_manual_wta_3jets);
+        // const NjettinessExtras *extras_manual_wta_3jets = njettiness_extras(njet_cluster_manual_wta_3jets);
+        // vector<PseudoJet> njet_jets_manual_wta_3jets = extras_manual_wta_3jets->jets();
 
-        TH1* tau3_diff_wta = (TH1*)tau3_diff_wta_hists.At(B);
-        tau3_diff_wta->Fill(extras_manual_wta_3jets->totalTau() - extras_threejets->totalTau());
-      }
+        // TH1* tau3_diff_wta = (TH1*)tau3_diff_wta_hists.At(B);
+        // tau3_diff_wta->Fill(extras_manual_wta_3jets->totalTau() - extras_threejets->totalTau());
+      // }
 
 
        // hardest_threejets vs sorted_njet_jets_threejets goes here:
@@ -1120,7 +1169,7 @@ int main(int argc, char* argv[]) {
 
       for (int i_jet = 0; i_jet < sorted_njet_threejets.size(); i_jet++) {
         for (int j_jet = 0; j_jet < hardest_fourjets.size(); j_jet++) {
-          if (sorted_njet_threejets[i_jet].delta_R(hardest_fourjets[j_jet]) < 0.2) overlap[i_jet][j_jet][B]++;
+          if (sorted_njet_threejets[i_jet].delta_R(hardest_fourjets[j_jet]) < (double)Rparam/2.0) overlap[i_jet][j_jet][B]++;
         }
       }
 
@@ -1239,8 +1288,9 @@ int main(int argc, char* argv[]) {
   double zprime_invmass_akt_scale = 1/zprime_invmass_akt->Integral(0, zprime_invmass_akt->GetNbinsX() + 1);
   zprime_invmass_akt->Scale(zprime_invmass_akt_scale);
   zprime_invmass_akt->SetLineColor(kBlack);
-  zprime_invmass_akt->SetLineWidth(3);
-  zprime_invmass_akt->SetTitle("Dijet invariant mass");
+  zprime_invmass_akt->SetLineStyle(7);
+  // zprime_invmass_akt->SetLineWidth(3);
+  zprime_invmass_akt->SetTitle("Dijet Inv. Mass");
   zprime_invmass_akt->GetXaxis()->SetTitle("m_{jj} (GeV)");
   zprime_invmass_akt->GetYaxis()->SetTitle("Relative Occurrence");
   // zprime_invmass_akt->GetXaxis()->CenterTitle();
@@ -1252,25 +1302,38 @@ int main(int argc, char* argv[]) {
   double zprime_invmass_akt_wta_scale = 1/zprime_invmass_akt_wta->Integral(0, zprime_invmass_akt_wta->GetNbinsX() + 1);
   zprime_invmass_akt_wta->Scale(zprime_invmass_akt_wta_scale);
   zprime_invmass_akt_wta->SetLineColor(28);
-  zprime_invmass_akt_wta->SetLineWidth(3);
+  // zprime_invmass_akt_wta->SetLineWidth(3);
   if (zprime_invmass_akt_wta->GetMaximum() > max_val) max_val = zprime_invmass_akt_wta->GetMaximum();
 
   zprime_invmass_akt->Draw();
   // zprime_invmass_akt_wta->Draw("SAMES");
-  TLegend *leg_mass_2jets = new TLegend(0.14, 0.65, 0.35, 0.89);
+  TLegend *leg_mass_2jets = new TLegend(0.2, 0.6, 0.35, 0.86);
+  // TLegend *leg_mass_2jets = new TLegend(0.6, 0.55, 0.86, 0.86);
   leg_mass_2jets->SetFillColor(kWhite);
   leg_mass_2jets->SetLineColor(kWhite);
-  leg_mass_2jets->AddEntry(zprime_invmass_akt, "ak_{T}", "L");
-  TPaveText *radius_text_left = new TPaveText(0.14, 0.5, 0.35, 0.6, "brNDC");
+  leg_mass_2jets->SetFillStyle(0);
+  leg_mass_2jets->SetTextSize(0.09);
+  TPaveText *radius_text_left = new TPaveText(0.2, 0.5, 0.4, 0.6, "brNDC");
   radius_text_left->SetTextFont(132);
-  radius_text_left->SetTextSize(0.06);
+  radius_text_left->SetTextSize(0.08);
   radius_text_left->SetFillColor(kWhite);
   radius_text_left->SetLineColor(kWhite);
-  radius_text_left->AddText("R = 0.6");
+  radius_text_left->SetFillStyle(0);
+  radius_text_left->SetBorderSize(0);
+  radius_text_left->AddText("R = 0.5");
+  TPaveText *mass_text_left = new TPaveText(0.55, 0.72, 0.8, 0.86, "brNDC");
+  mass_text_left->SetTextFont(132);
+  mass_text_left->SetTextSize(0.08);
+  mass_text_left->SetFillColor(kWhite);
+  mass_text_left->SetLineColor(kWhite);
+  mass_text_left->SetFillStyle(0);
+  mass_text_left->SetBorderSize(0);
+  mass_text_left->AddText("m_{Z'} = 1 TeV");
   // leg_mass_2jets->AddEntry(zprime_invmass_akt, "ak_{T} (E-scheme)", "L");
   // leg_mass_2jets->AddEntry(zprime_invmass_akt_wta, "ak_{T} (WTA)", "L");
 
   double twojet_efficiency[4];
+  TH1* final_drawn_histogram;
 
   for (int B = 0; B < n_betas; B++) {
 
@@ -1282,12 +1345,13 @@ int main(int argc, char* argv[]) {
     double zprime_invmass_njet_scale = 1/zprime_invmass_njet->Integral(0, zprime_invmass_njet->GetNbinsX() + 1);
     zprime_invmass_njet->Scale(zprime_invmass_akt_scale);
 
-    cout << " & AKT 1 & AKT 2 & AKT 3 & AKT 4 \\\\" << endl;
-    for (int i_jet = 0; i_jet < 3; i_jet++) {
-      cout << "Njet " << i_jet + 1;
-      for (int j_jet = 0; j_jet < 4; j_jet++) {
+    cout << "\\hline\\hline" << endl;
+    cout << " & XC 1 & XC 2 & XC 3 \\\\" << endl;
+    for (int i_jet = 0; i_jet < 4; i_jet++) {
+      cout << "AKT " << i_jet + 1;
+      for (int j_jet = 0; j_jet < 3; j_jet++) {
         // cout << "overlap of njet jet " << i_jet + 1 << " and akt jet " << j_jet + 1 << " is " << overlap[i_jet][j_jet][B]*zprime_invmass_njet_scale << endl;
-        cout << " & " << overlap[i_jet][j_jet][B]*zprime_invmass_njet_scale;
+        cout << " & " << overlap[j_jet][i_jet][B]*zprime_invmass_njet_scale;
       }
       cout << " \\\\ " << endl;
       cout << "\\hline" << endl;
@@ -1297,21 +1361,25 @@ int main(int argc, char* argv[]) {
 
     twojet_efficiency[B] = zprime_invmass_njet->Integral((double)850*zprime_invmass_njet->GetNbinsX()/1500, (double)1150*zprime_invmass_njet->GetNbinsX()/1500);
     zprime_invmass_njet->SetLineColor(colorlist[B]);
-    zprime_invmass_njet->SetLineWidth(3);
+    // zprime_invmass_njet->SetLineWidth(3);
     // if (B == 0) zprime_invmass_njet->SetLineColor(kRed);
     // if (B == 1) zprime_invmass_njet->SetLineColor(kBlue);
     // if (B == 2) zprime_invmass_njet->SetLineColor(kRed);
     // if (B == 3) zprime_invmass_njet->SetLineColor(kBlue);
-    zprime_invmass_njet->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = zprime_invmass_njet;
+    if (B == 1) zprime_invmass_njet->Draw("SAMES");
     leg_mass_2jets->AddEntry(zprime_invmass_njet, "#beta = " + (TString)ss.str());
     if (zprime_invmass_njet->GetMaximum() > max_val) max_val = zprime_invmass_njet->GetMaximum();
   }
+  leg_mass_2jets->AddEntry(zprime_invmass_akt, "ak_{T}", "L");
 
+  final_drawn_histogram->Draw("SAMES");
   zprime_invmass_akt->SetMaximum(1.2*max_val);
   leg_mass_2jets->Draw("SAMES");
   radius_text_left->Draw("SAMES");
+  mass_text_left->Draw("SAMES");
   mass_compare_2jets->Write();
-  mass_compare_2jets->Print("zprimestudy_test_plots/zprime_mass_compare_2jets.eps", "eps");
+  mass_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_mass_compare_2jets.eps", "eps");
 
 
   TCanvas *area_compare_1jet = new TCanvas("area_compare_1jet", "area_compare_1jet", 800, 800);
@@ -1320,7 +1388,8 @@ int main(int argc, char* argv[]) {
   double area_1jet_akt_scale = 1/area_1jet_akt->Integral(0, area_1jet_akt->GetNbinsX() + 1);
   area_1jet_akt->Scale(area_1jet_akt_scale);
   area_1jet_akt->SetLineColor(kBlack);
-  area_1jet_akt->SetLineWidth(3);
+  area_1jet_akt->SetLineStyle(7);
+  // area_1jet_akt->SetLineWidth(3);
   area_1jet_akt->SetTitle("Single Jet Area");
   area_1jet_akt->GetXaxis()->SetTitle("Area");
   area_1jet_akt->GetYaxis()->SetTitle("Relative Occurrence");
@@ -1331,23 +1400,34 @@ int main(int argc, char* argv[]) {
   double area_1jet_akt_wta_scale = 1/area_1jet_akt_wta->Integral(0, area_1jet_akt_wta->GetNbinsX() + 1);
   area_1jet_akt_wta->Scale(area_1jet_akt_wta_scale);
   area_1jet_akt_wta->SetLineColor(28);
-  area_1jet_akt_wta->SetLineWidth(3);
+  // area_1jet_akt_wta->SetLineWidth(3);
   if (area_1jet_akt_wta->GetMaximum() > max_val_area) max_val_area = area_1jet_akt_wta->GetMaximum();
 
   area_1jet_akt->Draw();
   // area_1jet_akt_wta->Draw("SAMES");
-  TLegend *leg_area_1jet = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_area_1jet = new TLegend(0.6, 0.6, 0.86, 0.86);
+  // TLegend *leg_area_1jet = new TLegend(0.17, 0.5, 0.45, 0.86);
   leg_area_1jet->SetFillColor(kWhite);
   leg_area_1jet->SetLineColor(kWhite);
-  leg_area_1jet->AddEntry(area_1jet_akt, "ak_{T}", "L");
+  leg_area_1jet->SetFillStyle(0);
+  leg_area_1jet->SetTextSize(0.09);
   // leg_area_1jet->AddEntry(area_1jet_akt, "ak_{T} (E-scheme)", "L");
   // leg_area_1jet->AddEntry(area_1jet_akt_wta, "ak_{T} (WTA)", "L");
-  TPaveText *radius_text_right = new TPaveText(0.65, 0.5, 0.88, 0.6, "brNDC");
+  TPaveText *radius_text_right = new TPaveText(0.55, 0.5, 0.86, 0.6, "brNDC");
   radius_text_right->SetTextFont(132);
-  radius_text_right->SetTextSize(0.06);
+  radius_text_right->SetTextSize(0.08);
   radius_text_right->SetFillColor(kWhite);
   radius_text_right->SetLineColor(kWhite);
-  radius_text_right->AddText("R = 0.6");
+  radius_text_right->SetFillStyle(0);
+  radius_text_right->SetBorderSize(0);
+  radius_text_right->AddText("R = 0.5");
+  TPaveText *mass_text_right = new TPaveText(0.2, 0.7, 0.35, 0.86, "brNDC");
+  mass_text_right->SetTextFont(132);
+  mass_text_right->SetTextSize(0.08);
+  mass_text_right->SetFillColor(kWhite);
+  mass_text_right->SetLineColor(kWhite);
+  mass_text_right->AddText("m_{Z'} = 1 TeV");
+
 
   for (int B = 0; B < n_betas; B++) {
 
@@ -1359,31 +1439,90 @@ int main(int argc, char* argv[]) {
     double area_1jet_njet_scale = 1/area_1jet_njet->Integral(0, area_1jet_njet->GetNbinsX() + 1);
     area_1jet_njet->Scale(area_1jet_akt_scale);
     area_1jet_njet->SetLineColor(colorlist[B]);
-    area_1jet_njet->SetLineWidth(3);
+    // area_1jet_njet->SetLineWidth(3);
     // if (B == 0) area_1jet_njet->SetLineColor(kRed);
     // if (B == 1) area_1jet_njet->SetLineColor(kBlue);
     // if (B == 2) area_1jet_njet->SetLineColor(kRed);
     // if (B == 3) area_1jet_njet->SetLineColor(kBlue);
-    area_1jet_njet->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = area_1jet_njet;
+    if (B == 1) area_1jet_njet->Draw("SAMES");
     leg_area_1jet->AddEntry(area_1jet_njet, "#beta = " + (TString)ss.str());
     if (area_1jet_njet->GetMaximum() > max_val_area) max_val_area = area_1jet_njet->GetMaximum();
   }
+  leg_area_1jet->AddEntry(area_1jet_akt, "ak_{T}", "L");
+  final_drawn_histogram->Draw("SAMES");
 
   TLine *true_area = new TLine();
-  true_area->SetX1(1.131);
+  true_area->SetX1(TMath::Pi()*Rparam*Rparam);
   true_area->SetVertical(true);
   true_area->SetY1(0);
   true_area->SetY2(1.2*max_val_area);
   true_area->SetLineColor(kRed);
-  true_area->SetLineWidth(3);
+  // true_area->SetLineWidth(3);
   true_area->SetLineStyle(7);
   true_area->Draw();
 
   area_1jet_akt->SetMaximum(1.2*max_val_area);
   leg_area_1jet->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  // mass_text_right->Draw("SAMES");
   area_compare_1jet->Write();
-  area_compare_1jet->Print("zprimestudy_test_plots/zprime_area_compare_1jet.eps", "eps");
+  area_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_area_compare_1jet.eps", "eps");
+
+
+
+  TCanvas *area_compare_2jet = new TCanvas("area_compare_2jet", "area_compare_2jet", 800, 800);
+  area_compare_2jet->UseCurrentStyle();
+  area_compare_2jet->cd();
+  double area_2jet_akt_scale = 1/area_2jet_akt->Integral(0, area_2jet_akt->GetNbinsX() + 1);
+  area_2jet_akt->Scale(area_2jet_akt_scale);
+  area_2jet_akt->SetLineColor(kBlack);
+  // area_2jet_akt->SetLineWidth(3);
+  area_2jet_akt->SetTitle("Jet area");
+  area_2jet_akt->GetXaxis()->SetTitle("Area");
+  area_2jet_akt->GetYaxis()->SetTitle("Relative Occurrence");
+  // area_2jet_akt->GetYaxis()->SetTitleOffset(1.0);
+  area_2jet_akt->SetMinimum(0.0);
+  double max_val_area_2jet = area_2jet_akt->GetMaximum();
+
+  area_2jet_akt->Draw();
+  TLegend *leg_area_2jet = new TLegend(0.55, 0.5, 0.86, 0.86);
+  leg_area_2jet->SetFillColor(kWhite);
+  leg_area_2jet->SetLineColor(kWhite);
+  // leg_area_2jet->AddEntry(area_2jet_akt, "ak_{T} (E-scheme)", "L");
+  // leg_area_2jet->AddEntry(area_2jet_akt_wta, "ak_{T} (WTA)", "L");
+
+  for (int B = 0; B < n_betas; B++) {
+
+    double beta = betalist[B];
+    ostringstream ss;
+    ss << beta;
+
+    TH1* area_2jet_njet = (TH1*)area_2jet_njet_hists.At(B);
+    double area_2jet_njet_scale = 1/area_2jet_njet->Integral(0, area_2jet_njet->GetNbinsX() + 1);
+    area_2jet_njet->Scale(area_2jet_akt_scale);
+    area_2jet_njet->SetLineColor(colorlist[B]);
+    // area_2jet_njet->SetLineWidth(3);
+    // if (B == 0) area_2jet_njet->SetLineColor(kRed);
+    // if (B == 1) area_2jet_njet->SetLineColor(kBlue);
+    // if (B == 2) area_2jet_njet->SetLineColor(kRed);
+    // if (B == 3) area_2jet_njet->SetLineColor(kBlue);
+    area_2jet_njet->Draw("SAMES");
+    leg_area_2jet->AddEntry(area_2jet_njet, "#beta = " + (TString)ss.str());
+    if (area_2jet_njet->GetMaximum() > max_val_area_2jet) max_val_area_2jet = area_2jet_njet->GetMaximum();
+  }
+  leg_area_2jet->AddEntry(area_2jet_akt, "ak_{T}", "L");
+
+  true_area->SetY2(1.2*max_val_area_2jet);
+  true_area->Draw();
+
+  area_2jet_akt->SetMaximum(1.2*max_val_area_2jet);
+  leg_area_2jet->Draw("SAMES");
+  radius_text_right->Draw("SAMES");
+  // mass_text_right->Draw("SAMES");
+  area_compare_2jet->Write();
+  area_compare_2jet->Print("zprimestudy_onepassXcone_test_plots/zprime_area_compare_2jet.eps", "eps");
+
 
 
   TCanvas *area_compare_3jet = new TCanvas("area_compare_3jet", "area_compare_3jet", 800, 800);
@@ -1392,8 +1531,9 @@ int main(int argc, char* argv[]) {
   double area_3jet_akt_scale = 1/area_3jet_akt->Integral(0, area_3jet_akt->GetNbinsX() + 1);
   area_3jet_akt->Scale(area_3jet_akt_scale);
   area_3jet_akt->SetLineColor(kBlack);
-  area_3jet_akt->SetLineWidth(3);
-  area_3jet_akt->SetTitle("Third jet area");
+  area_3jet_akt->SetLineStyle(7);
+  // area_3jet_akt->SetLineWidth(3);
+  area_3jet_akt->SetTitle("Third Jet Area");
   area_3jet_akt->GetXaxis()->SetTitle("Area");
   area_3jet_akt->GetYaxis()->SetTitle("Relative Occurrence");
   // area_3jet_akt->GetYaxis()->SetTitleOffset(1.0);
@@ -1403,15 +1543,16 @@ int main(int argc, char* argv[]) {
   double area_3jet_akt_wta_scale = 1/area_3jet_akt_wta->Integral(0, area_3jet_akt_wta->GetNbinsX() + 1);
   area_3jet_akt_wta->Scale(area_3jet_akt_wta_scale);
   area_3jet_akt_wta->SetLineColor(28);
-  area_3jet_akt_wta->SetLineWidth(3);
+  // area_3jet_akt_wta->SetLineWidth(3);
   if (area_3jet_akt_wta->GetMaximum() > max_val_area_3jet) max_val_area_3jet = area_3jet_akt_wta->GetMaximum();
 
   area_3jet_akt->Draw();
   // area_3jet_akt_wta->Draw("SAMES");
-  TLegend *leg_area_3jet = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_area_3jet = new TLegend(0.6, 0.6, 0.86, 0.86);
   leg_area_3jet->SetFillColor(kWhite);
   leg_area_3jet->SetLineColor(kWhite);
-  leg_area_3jet->AddEntry(area_3jet_akt, "ak_{T}", "L");
+  leg_area_3jet->SetFillStyle(0);
+  leg_area_3jet->SetTextSize(0.09);
   // leg_area_3jet->AddEntry(area_3jet_akt, "ak_{T} (E-scheme)", "L");
   // leg_area_3jet->AddEntry(area_3jet_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -1425,15 +1566,20 @@ int main(int argc, char* argv[]) {
     double area_3jet_njet_scale = 1/area_3jet_njet->Integral(0, area_3jet_njet->GetNbinsX() + 1);
     area_3jet_njet->Scale(area_3jet_akt_scale);
     area_3jet_njet->SetLineColor(colorlist[B]);
-    area_3jet_njet->SetLineWidth(3);
+    // area_3jet_njet->SetLineWidth(3);
     // if (B == 0) area_3jet_njet->SetLineColor(kRed);
     // if (B == 1) area_3jet_njet->SetLineColor(kBlue);
     // if (B == 2) area_3jet_njet->SetLineColor(kRed);
     // if (B == 3) area_3jet_njet->SetLineColor(kBlue);
-    area_3jet_njet->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = area_3jet_njet;
+    if (B == 1) area_3jet_njet->Draw("SAMES");
+
+    // area_3jet_njet->Draw("SAMES");
     leg_area_3jet->AddEntry(area_3jet_njet, "#beta = " + (TString)ss.str());
     if (area_3jet_njet->GetMaximum() > max_val_area_3jet) max_val_area_3jet = area_3jet_njet->GetMaximum();
   }
+  leg_area_3jet->AddEntry(area_3jet_akt, "ak_{T}", "L");
+  final_drawn_histogram->Draw("SAMES");
 
   true_area->SetY2(1.2*max_val_area_3jet);
   true_area->Draw();
@@ -1441,8 +1587,9 @@ int main(int argc, char* argv[]) {
   area_3jet_akt->SetMaximum(1.2*max_val_area_3jet);
   leg_area_3jet->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  // mass_text_right->Draw("SAMES");
   area_compare_3jet->Write();
-  area_compare_3jet->Print("zprimestudy_test_plots/zprime_area_compare_3jet.eps", "eps");
+  area_compare_3jet->Print("zprimestudy_onepassXcone_test_plots/zprime_area_compare_3jet.eps", "eps");
 
 
   TCanvas *invperp_compare_2jets = new TCanvas("invperp_compare_2jets", "invperp_compare_2jets", 800, 800);
@@ -1464,11 +1611,10 @@ int main(int argc, char* argv[]) {
 
   zprime_invperp_akt->Draw();
   // zprime_invperp_akt_wta->Draw("SAMES");
-  TLegend *leg_invperp_2jets = new TLegend(0.12, 0.65, 0.35, 0.88);
+  TLegend *leg_invperp_2jets = new TLegend(0.17, 0.55, 0.45, 0.86);
   leg_invperp_2jets->SetFillColor(kWhite);
   leg_invperp_2jets->SetLineColor(kWhite);
 
-  leg_invperp_2jets->AddEntry(zprime_invperp_akt, "ak_{T}", "L");
   // leg_invperp_2jets->AddEntry(zprime_invperp_akt, "ak_{T} (E-scheme)", "L");
   // leg_invperp_2jets->AddEntry(zprime_invperp_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -1489,11 +1635,12 @@ int main(int argc, char* argv[]) {
     leg_invperp_2jets->AddEntry(zprime_invperp_njet, "#beta = " + (TString)ss.str());
     if (zprime_invperp_njet->GetMaximum() > max_val_invperp) max_val_invperp = zprime_invperp_njet->GetMaximum();
   }
+  leg_invperp_2jets->AddEntry(zprime_invperp_akt, "ak_{T}", "L");
 
   zprime_invperp_akt->SetMaximum(1.2*max_val_invperp);
   leg_invperp_2jets->Draw("SAMES");
   invperp_compare_2jets->Write();
-  invperp_compare_2jets->Print("zprimestudy_test_plots/zprime_invperp_compare_2jets.eps", "eps");
+  invperp_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_invperp_compare_2jets.eps", "eps");
 
 
   TCanvas *perp_compare_2jets = new TCanvas("perp_compare_2jets", "perp_compare_2jets", 800, 800);
@@ -1515,10 +1662,9 @@ int main(int argc, char* argv[]) {
 
   jet_ptspectrum_akt->Draw();
   // jet_ptspectrum_akt_wta->Draw("SAMES");
-  TLegend *leg_perp_2jets = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_perp_2jets = new TLegend(0.55, 0.5, 0.86, 0.86);
   leg_perp_2jets->SetFillColor(kWhite);
   leg_perp_2jets->SetLineColor(kWhite);
-  leg_perp_2jets->AddEntry(jet_ptspectrum_akt, "ak_{T}", "L");
   // leg_perp_2jets->AddEntry(jet_ptspectrum_akt, "ak_{T} (E-scheme)", "L");
   // leg_perp_2jets->AddEntry(jet_ptspectrum_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -1539,12 +1685,14 @@ int main(int argc, char* argv[]) {
     leg_perp_2jets->AddEntry(jet_ptspectrum_njet, "#beta = " + (TString)ss.str());
     if (jet_ptspectrum_njet->GetMaximum() > max_val_perp_2jets) max_val_perp_2jets = jet_ptspectrum_njet->GetMaximum();
   }
+  leg_perp_2jets->AddEntry(jet_ptspectrum_akt, "ak_{T}", "L");
 
   jet_ptspectrum_akt->SetMaximum(1.2*max_val_perp_2jets);
   leg_perp_2jets->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  mass_text_right->Draw("SAMES");
   perp_compare_2jets->Write();
-  perp_compare_2jets->Print("zprimestudy_test_plots/zprime_perp_compare_2jets.eps", "eps");
+  perp_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perp_compare_2jets.eps", "eps");
 
 
   TCanvas *phi_compare_2jets = new TCanvas("phi_compare_2jets", "phi_compare_2jets", 800, 800);
@@ -1566,10 +1714,9 @@ int main(int argc, char* argv[]) {
 
   jet_phispectrum_akt->Draw();
   // jet_phispectrum_akt_wta->Draw("SAMES");
-  TLegend *leg_phi_2jets = new TLegend(0.14, 0.65, 0.35, 0.89);
+  TLegend *leg_phi_2jets = new TLegend(0.17, 0.65, 0.35, 0.89);
   leg_phi_2jets->SetFillColor(kWhite);
   leg_phi_2jets->SetLineColor(kWhite);
-  leg_phi_2jets->AddEntry(jet_phispectrum_akt, "ak_{T}", "L");
   // leg_phi_2jets->AddEntry(jet_phispectrum_akt, "ak_{T} (E-scheme)", "L");
   // leg_phi_2jets->AddEntry(jet_phispectrum_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -1590,14 +1737,16 @@ int main(int argc, char* argv[]) {
     leg_phi_2jets->AddEntry(jet_phispectrum_njet, "#beta = " + (TString)ss.str());
     if (jet_phispectrum_njet->GetMaximum() > max_val_phi_2jets) max_val_phi_2jets = jet_phispectrum_njet->GetMaximum();
   }
+  leg_phi_2jets->AddEntry(jet_phispectrum_akt, "ak_{T}", "L");
 
   jet_phispectrum_akt->SetMaximum(1.2*max_val_phi_2jets);
   leg_phi_2jets->SetFillColor(kWhite);
   leg_phi_2jets->SetLineColor(kWhite);
   leg_phi_2jets->Draw("SAMES");
   radius_text_left->Draw("SAMES");
+  mass_text_left->Draw("SAMES");
   phi_compare_2jets->Write();
-  phi_compare_2jets->Print("zprimestudy_test_plots/zprime_phi_compare_2jets.eps", "eps");
+  phi_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phi_compare_2jets.eps", "eps");
 
 
   // TCanvas *mass_compare_secondjet = new TCanvas("mass_compare_secondjet", "mass_compare_secondjet", 800, 800);
@@ -1644,7 +1793,7 @@ int main(int argc, char* argv[]) {
   // secondjet_mass_akt->SetMaximum(1.2*max_val_mass_secondjet);
   // leg_mass_secondjet->Draw("SAMES");
   // mass_compare_secondjet->Write();
-  // mass_compare_secondjet->Print("zprimestudy_test_plots/mass_compare_secondjet.eps", "eps");
+  // mass_compare_secondjet->Print("zprimestudy_onepassXcone_test_plots/mass_compare_secondjet.eps", "eps");
 
 
   // TCanvas *perp_compare_secondjet = new TCanvas("perp_compare_secondjet", "perp_compare_secondjet", 800, 800);
@@ -1691,7 +1840,7 @@ int main(int argc, char* argv[]) {
   // secondjet_perp_akt->SetMaximum(1.2*max_val_perp_secondjet);
   // leg_perp_secondjet->Draw("SAMES");
   // perp_compare_secondjet->Write();
-  // perp_compare_secondjet->Print("zprimestudy_test_plots/perp_compare_secondjet.eps", "eps");
+  // perp_compare_secondjet->Print("zprimestudy_onepassXcone_test_plots/perp_compare_secondjet.eps", "eps");
 
 
   // TCanvas *phi_compare_secondjet = new TCanvas("phi_compare_secondjet", "phi_compare_secondjet", 800, 800);
@@ -1738,21 +1887,32 @@ int main(int argc, char* argv[]) {
   // secondjet_phi_akt->SetMaximum(1.2*max_val_phi_secondjet);
   // leg_phi_secondjet->Draw("SAMES");
   // phi_compare_secondjet->Write();
-  // phi_compare_secondjet->Print("zprimestudy_test_plots/phi_compare_secondjet.eps", "eps");
+  // phi_compare_secondjet->Print("zprimestudy_onepassXcone_test_plots/phi_compare_secondjet.eps", "eps");
 
   TCanvas *massdiff_compare_2jets = new TCanvas("massdiff_compare_2jets", "massdiff_compare_2jets", 800, 800);
   massdiff_compare_2jets->cd();
   massdiff_compare_2jets->SetLogy();
   double max_val_massdiff_2jets = 0;
-  TLegend *leg_massdiff_2jets = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_massdiff_2jets = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_massdiff_2jets->SetFillColor(kWhite);
   leg_massdiff_2jets->SetLineColor(kWhite);
-  TPaveText *radius_text_right_diff = new TPaveText(0.7, 0.55, 0.88, 0.65, "brNDC");
+  leg_massdiff_2jets->SetFillStyle(0);
+  leg_massdiff_2jets->SetTextSize(0.09);
+  TPaveText *radius_text_right_diff = new TPaveText(0.6, 0.55, 0.86, 0.65, "brNDC");
   radius_text_right_diff->SetTextFont(132);
-  radius_text_right_diff->SetTextSize(0.06);
+  radius_text_right_diff->SetTextSize(0.08);
   radius_text_right_diff->SetFillColor(kWhite);
   radius_text_right_diff->SetLineColor(kWhite);
-  radius_text_right_diff->AddText("R = 0.6");
+  radius_text_right_diff->SetFillStyle(0);
+  radius_text_right_diff->SetBorderSize(0);
+  radius_text_right_diff->AddText("R = 0.5");
+  TPaveText *mass_text_right_diff = new TPaveText(0.2, 0.7, 0.35, 0.86, "brNDC");
+  mass_text_right_diff->SetTextFont(132);
+  mass_text_right_diff->SetTextSize(0.08);
+  mass_text_right_diff->SetFillColor(kWhite);
+  mass_text_right_diff->SetLineColor(kWhite);
+  mass_text_right_diff->SetFillStyle(0);
+  mass_text_right_diff->AddText("m_{Z'} = 1 TeV");
 
 
   for (int B = 0; B < n_betas; B++) {
@@ -1770,11 +1930,12 @@ int main(int argc, char* argv[]) {
     // if (B == 3) zprime_invmass_diff->SetLineColor(kBlue);
     zprime_invmass_diff->SetLineColor(colorlist[B]);
 
-    if (B == 0) zprime_invmass_diff->Draw();
-    else zprime_invmass_diff->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = zprime_invmass_diff;
+    if (B == 1) zprime_invmass_diff->Draw();
+    // else zprime_invmass_diff->Draw("SAMES");
     // zprime_invmass_diff->SetTitle("Dijet Mass Difference (E-scheme)");
-    zprime_invmass_diff->SetTitle("Dijet Mass Difference");
-    zprime_invmass_diff->GetXaxis()->SetTitle("m_{akt} - m_{njet} (GeV)");
+    zprime_invmass_diff->SetTitle("2-Jet Mass Diff.");
+    zprime_invmass_diff->GetXaxis()->SetTitle("m_{akt} - m_{XCone} (GeV)");
     zprime_invmass_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // zprime_invmass_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -1785,17 +1946,19 @@ int main(int argc, char* argv[]) {
     if (B == 3) zprime_invmass_diff->SetMaximum(1.5*max_val_massdiff_2jets);
   }
 
+  final_drawn_histogram->Draw("SAMES");
   leg_massdiff_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   massdiff_compare_2jets->Write();
-  massdiff_compare_2jets->Print("zprimestudy_test_plots/zprime_massdiff_compare_2jets.eps", "eps");
+  massdiff_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_massdiff_compare_2jets.eps", "eps");
 
 
   TCanvas *massdiff_wta_compare_2jets = new TCanvas("massdiff_wta_compare_2jets", "massdiff_wta_compare_2jets", 800, 800);
   massdiff_wta_compare_2jets->cd();
   massdiff_wta_compare_2jets->SetLogy();
   double max_val_massdiff_wta_2jets = 0;
-  TLegend *leg_massdiff_wta_2jets = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_massdiff_wta_2jets = new TLegend(0.6, 0.6, 0.86, 0.86);
   leg_massdiff_wta_2jets->SetFillColor(kWhite);
   leg_massdiff_wta_2jets->SetLineColor(kWhite);
 
@@ -1818,7 +1981,7 @@ int main(int argc, char* argv[]) {
     else zprime_invmass_diff_wta->Draw("SAMES");
   
     zprime_invmass_diff_wta->SetTitle("Dijet Mass Difference (WTA)");
-    zprime_invmass_diff_wta->GetXaxis()->SetTitle("m_{akt} - m_{njet} (GeV)");
+    zprime_invmass_diff_wta->GetXaxis()->SetTitle("m_{akt} - m_{XCone} (GeV)");
     zprime_invmass_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // zprime_invmass_diff_wta->GetYaxis()->SetTitleOffset(1.5);
 
@@ -1831,8 +1994,9 @@ int main(int argc, char* argv[]) {
 
   leg_massdiff_wta_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   massdiff_wta_compare_2jets->Write();
-  massdiff_wta_compare_2jets->Print("zprimestudy_test_plots/zprime_massdiff_wta_compare_2jets.eps", "eps");
+  massdiff_wta_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_massdiff_wta_compare_2jets.eps", "eps");
 
 
   TCanvas *perpdiff_compare_2jets = new TCanvas("perpdiff_compare_2jets", "perpdiff_compare_2jets", 800, 800);
@@ -1861,7 +2025,7 @@ int main(int argc, char* argv[]) {
     else twojet_bothjets_perp_diff->Draw("SAMES");
     // twojet_bothjets_perp_diff->SetTitle("p_{T} Difference of 2 hardest jets (E-scheme)");
     twojet_bothjets_perp_diff->SetTitle("p_{T} Difference of 2 hardest jets");
-    twojet_bothjets_perp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet} (GeV)");
+    twojet_bothjets_perp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, XCone} (GeV)");
     twojet_bothjets_perp_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // twojet_bothjets_perp_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -1874,8 +2038,9 @@ int main(int argc, char* argv[]) {
 
   leg_perpdiff_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   perpdiff_compare_2jets->Write();
-  perpdiff_compare_2jets->Print("zprimestudy_test_plots/zprime_perpdiff_compare_2jets.eps", "eps");
+  perpdiff_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perpdiff_compare_2jets.eps", "eps");
 
 
   TCanvas *perpdiff_wta_compare_2jets = new TCanvas("perpdiff_wta_compare_2jets", "perpdiff_wta_compare_2jets", 800, 800);
@@ -1903,7 +2068,7 @@ int main(int argc, char* argv[]) {
     if (B == 0) twojet_bothjets_perp_diff_wta->Draw();
     else twojet_bothjets_perp_diff_wta->Draw("SAMES");
     twojet_bothjets_perp_diff_wta->SetTitle("p_{T} Difference of 2 hardest jets (WTA)");
-    twojet_bothjets_perp_diff_wta->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet} (GeV)");
+    twojet_bothjets_perp_diff_wta->GetXaxis()->SetTitle("p_{T, akt} - p_{T, XCone} (GeV)");
     twojet_bothjets_perp_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // twojet_bothjets_perp_diff_wta->GetYaxis()->SetTitleOffset(1.5);
 
@@ -1916,8 +2081,9 @@ int main(int argc, char* argv[]) {
 
   leg_perpdiff_wta_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   perpdiff_wta_compare_2jets->Write();
-  perpdiff_wta_compare_2jets->Print("zprimestudy_test_plots/zprime_perpdiff_wta_compare_2jets.eps", "eps");
+  perpdiff_wta_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perpdiff_wta_compare_2jets.eps", "eps");
 
   TCanvas *phidiff_compare_2jets = new TCanvas("phidiff_compare_2jets", "phidiff_compare_2jets", 800, 800);
   phidiff_compare_2jets->cd();
@@ -1945,7 +2111,7 @@ int main(int argc, char* argv[]) {
     else twojet_bothjets_phi_diff->Draw("SAMES");
     // twojet_bothjets_phi_diff->SetTitle("#phi difference of 2 hardest jets (E-scheme)");
     twojet_bothjets_phi_diff->SetTitle("#phi difference of 2 hardest jets");
-    twojet_bothjets_phi_diff->GetXaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    twojet_bothjets_phi_diff->GetXaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     twojet_bothjets_phi_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // twojet_bothjets_phi_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -1958,8 +2124,9 @@ int main(int argc, char* argv[]) {
 
   leg_phidiff_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   phidiff_compare_2jets->Write();
-  phidiff_compare_2jets->Print("zprimestudy_test_plots/zprime_phidiff_compare_2jets.eps", "eps");
+  phidiff_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_compare_2jets.eps", "eps");
 
 
   TCanvas *phidiff_wta_compare_2jets = new TCanvas("phidiff_wta_compare_2jets", "phidiff_wta_compare_2jets", 800, 800);
@@ -1987,7 +2154,7 @@ int main(int argc, char* argv[]) {
     if (B == 0) twojet_bothjets_phi_diff_wta->Draw();
     else twojet_bothjets_phi_diff_wta->Draw("SAMES");
     twojet_bothjets_phi_diff_wta->SetTitle("#phi difference of 2 hardest jets (WTA)");
-    twojet_bothjets_phi_diff_wta->GetXaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    twojet_bothjets_phi_diff_wta->GetXaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     twojet_bothjets_phi_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // twojet_bothjets_phi_diff_wta->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2000,18 +2167,20 @@ int main(int argc, char* argv[]) {
 
   leg_phidiff_wta_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   phidiff_wta_compare_2jets->Write();
-  phidiff_wta_compare_2jets->Print("zprimestudy_test_plots/zprime_phidiff_wta_compare_2jets.eps", "eps");
+  phidiff_wta_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_wta_compare_2jets.eps", "eps");
 
 
   TCanvas *perp_phidiff_compare_2jets = new TCanvas("perp_phidiff_compare_2jets", "perp_phidiff_compare_2jets", 800, 800);
   perp_phidiff_compare_2jets->cd();
   // perp_phidiff_compare_2jets->SetLogz();
   // double max_val_perp_phidiff = 0;
-  TLegend *leg_perp_phidiff_2jets = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_perp_phidiff_2jets = new TLegend(0.6, 0.6, 0.86, 0.86);
   leg_perp_phidiff_2jets->SetFillColor(kWhite);
   leg_perp_phidiff_2jets->SetLineColor(kWhite);
 
+  TH2* final_drawn_histogram_th2;
   for (int B = 0; B < betalist.size(); B++) {
     double beta = betalist[B];
     ostringstream ss;
@@ -2024,8 +2193,8 @@ int main(int argc, char* argv[]) {
         double currentcontent = twojet_bothjets_perp_phi_diff->GetCellContent(i,j);
         if (currentcontent == 0) log_currentcontent = 0;
         else log_currentcontent = TMath::Log10(currentcontent);
-        if (B == 0) twojet_bothjets_perp_phi_diff->SetCellContent(i, j, log_currentcontent);
-        if (B == 1) twojet_bothjets_perp_phi_diff->SetCellContent(i, j, 2*log_currentcontent);
+        if (B == 1) twojet_bothjets_perp_phi_diff->SetCellContent(i, j, log_currentcontent);
+        if (B == 0) twojet_bothjets_perp_phi_diff->SetCellContent(i, j, 2*log_currentcontent);
       }
     }
 
@@ -2034,34 +2203,41 @@ int main(int argc, char* argv[]) {
     // twojet_bothjets_perp_phi_diff->Scale(twojet_bothjets_perp_phi_diff_scale);
     // twojet_bothjets_perp_phi_diff->SetMarkerStyle(20);
     // twojet_bothjets_perp_phi_diff->SetMarkerSize(0.2);
-    if (B == 0) {
-      twojet_bothjets_perp_phi_diff->SetFillColor(kRed);
-      twojet_bothjets_perp_phi_diff->SetMarkerColor(kRed);
-      twojet_bothjets_perp_phi_diff->SetLineColor(kRed);
-    }
-    if (B == 1) {
-      twojet_bothjets_perp_phi_diff->SetFillStyle(0);
+    twojet_bothjets_perp_phi_diff->SetFillColor(colorlist[B]);
+    twojet_bothjets_perp_phi_diff->SetMarkerColor(colorlist[B]);
+    twojet_bothjets_perp_phi_diff->SetLineColor(colorlist[B]);
+
+    // if (B == 0) {
+      // twojet_bothjets_perp_phi_diff->SetFillColor(kRed);
+      // twojet_bothjets_perp_phi_diff->SetMarkerColor(kRed);
+      // twojet_bothjets_perp_phi_diff->SetLineColor(kRed);
+    // }
+    // if (B == 1) {
+      // twojet_bothjets_perp_phi_diff->SetFillStyle(0);
       // twojet_bothjets_perp_phi_diff->SetLineWidth(2);
-      twojet_bothjets_perp_phi_diff->SetFillColor(kBlue);
-      twojet_bothjets_perp_phi_diff->SetMarkerColor(kBlue);
-      twojet_bothjets_perp_phi_diff->SetLineColor(kBlue);
-    }
-    if (B == 2) {
-      twojet_bothjets_perp_phi_diff->SetFillColor(kRed);
-      twojet_bothjets_perp_phi_diff->SetMarkerColor(kRed);
-      twojet_bothjets_perp_phi_diff->SetLineColor(kRed);
-    }
-    if (B == 3) {
-      twojet_bothjets_perp_phi_diff->SetFillColor(kBlue);
-      twojet_bothjets_perp_phi_diff->SetMarkerColor(kBlue);
-      twojet_bothjets_perp_phi_diff->SetLineColor(kBlue);
-    }
+      // twojet_bothjets_perp_phi_diff->SetFillColor(kBlue);
+      // twojet_bothjets_perp_phi_diff->SetMarkerColor(kBlue);
+      // twojet_bothjets_perp_phi_diff->SetLineColor(kBlue);
+    // }
+    // if (B == 2) {
+      // twojet_bothjets_perp_phi_diff->SetFillColor(kRed);
+      // twojet_bothjets_perp_phi_diff->SetMarkerColor(kRed);
+      // twojet_bothjets_perp_phi_diff->SetLineColor(kRed);
+    // }
+    // if (B == 3) {
+      // twojet_bothjets_perp_phi_diff->SetFillColor(kBlue);
+      // twojet_bothjets_perp_phi_diff->SetMarkerColor(kBlue);
+      // twojet_bothjets_perp_phi_diff->SetLineColor(kBlue);
+    // }
     twojet_bothjets_perp_phi_diff->SetTitle("#Delta p_{T} vs. #Delta #phi");
-    twojet_bothjets_perp_phi_diff->GetXaxis()->SetTitle("p_{T,akt} - p_{T,njet}");
-    twojet_bothjets_perp_phi_diff->GetYaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    twojet_bothjets_perp_phi_diff->GetXaxis()->SetTitle("p_{T,akt} - p_{T,XCone}");
+    twojet_bothjets_perp_phi_diff->GetYaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     twojet_bothjets_perp_phi_diff->GetYaxis()->SetTitleOffset(1.0);
 
-    if (B == 0) twojet_bothjets_perp_phi_diff->Draw("box");
+
+    if (B == 0) final_drawn_histogram_th2 = twojet_bothjets_perp_phi_diff; 
+
+    if (B == 1) twojet_bothjets_perp_phi_diff->Draw("box");
     else {
       twojet_bothjets_perp_phi_diff->Draw("box SAMES");
       perp_phidiff_compare_2jets->Update();
@@ -2073,10 +2249,12 @@ int main(int argc, char* argv[]) {
     // }
   }
 
+  final_drawn_histogram_th2->Draw("box SAMES");
   leg_perp_phidiff_2jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   perp_phidiff_compare_2jets->Write();
-  perp_phidiff_compare_2jets->Print("zprimestudy_test_plots/zprime_perp_phidiff_compare_2jets.eps", "eps");
+  perp_phidiff_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perp_phidiff_compare_2jets.eps", "eps");
 
 
 
@@ -2103,7 +2281,7 @@ int main(int argc, char* argv[]) {
   //   if (B == 3) jet_phispectrum_diff->SetLineColor(kBlue);
   //   jet_phispectrum_diff->Draw("SAMES");
   //   jet_phispectrum_diff->SetTitle("Difference in Dijet Azimuthal Distance for anti-k_{T} (E-scheme) and 2-jettiness");
-  //   jet_phispectrum_diff->GetXaxis()->SetTitle("|#phi_{jj}_{akt} - #phi_{jj}_{njet}| (GeV)");
+  //   jet_phispectrum_diff->GetXaxis()->SetTitle("|#phi_{jj}_{akt} - #phi_{jj}_{XCone}| (GeV)");
   //   jet_phispectrum_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // jet_phispectrum_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2116,7 +2294,7 @@ int main(int argc, char* argv[]) {
 
   // leg_phidiff_2jets->Draw("SAMES");
   // phidiff_compare_2jets->Write();
-  // phidiff_compare_2jets->Print("zprimestudy_test_plots/zprime_phidiff_compare_2jets.eps", "eps");
+  // phidiff_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_compare_2jets.eps", "eps");
 
   TCanvas *tau2diff_compare_2jets = new TCanvas("tau2diff_compare_2jets", "tau2diff_compare_2jets", 800, 800);
   tau2diff_compare_2jets->cd();
@@ -2140,7 +2318,7 @@ int main(int argc, char* argv[]) {
     if (B == 3) tau2_diff->SetLineColor(kBlue);
     // tau2_diff->SetTitle("#tau_{2} difference of anti-k_{T} (E-scheme) and 2-jettiness jets");
     tau2_diff->SetTitle("#tau_{2} difference of anti-k_{T} and 2-jettiness jets");
-    tau2_diff->GetXaxis()->SetTitle("#tau_{2}_{akt} - #tau_{2}_{njet}");
+    tau2_diff->GetXaxis()->SetTitle("#tau_{2}_{akt} - #tau_{2}_{XCone}");
     tau2_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // tau2_diff->GetYaxis()->SetTitleOffset(1.5);
     tau2_diff->Draw("SAMES");
@@ -2153,7 +2331,7 @@ int main(int argc, char* argv[]) {
 
   leg_tau2diff_2jets->Draw("SAMES");
   tau2diff_compare_2jets->Write();
-  tau2diff_compare_2jets->Print("zprimestudy_test_plots/zprime_tau2diff_compare_2jets.eps", "eps");
+  tau2diff_compare_2jets->Print("zprimestudy_onepassXcone_test_plots/zprime_tau2diff_compare_2jets.eps", "eps");
 
 
 
@@ -2161,9 +2339,11 @@ int main(int argc, char* argv[]) {
   areadiff_compare_1jet->cd();
   areadiff_compare_1jet->SetLogy();
   double max_val_areadiff_1jet = 0;
-  TLegend *leg_areadiff_1jet = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_areadiff_1jet = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_areadiff_1jet->SetFillColor(kWhite);
   leg_areadiff_1jet->SetLineColor(kWhite);
+  leg_areadiff_1jet->SetFillStyle(0);
+  leg_areadiff_1jet->SetTextSize(0.09);
 
   for (int B = 0; B < n_betas; B++) {
 
@@ -2174,16 +2354,19 @@ int main(int argc, char* argv[]) {
     TH1* area_1jet_diff = (TH1*)area_1jet_diff_hists.At(B);
     double area_1jet_diff_scale = 1/area_1jet_diff->Integral(0, area_1jet_diff->GetNbinsX() + 1);
     area_1jet_diff->Scale(area_1jet_diff_scale);
-    if (B == 0) area_1jet_diff->SetLineColor(kRed);
-    if (B == 1) area_1jet_diff->SetLineColor(kBlue);
-    if (B == 2) area_1jet_diff->SetLineColor(kRed);
-    if (B == 3) area_1jet_diff->SetLineColor(kBlue);
 
-    if (B == 0) area_1jet_diff->Draw();
-    else area_1jet_diff->Draw("SAMES");
+    area_1jet_diff->SetLineColor(colorlist[B]);
+    // if (B == 0) area_1jet_diff->SetLineColor(kRed);
+    // if (B == 1) area_1jet_diff->SetLineColor(kBlue);
+    // if (B == 2) area_1jet_diff->SetLineColor(kRed);
+    // if (B == 3) area_1jet_diff->SetLineColor(kBlue);
+
+    if (B == 0) final_drawn_histogram = area_1jet_diff;
+    if (B == 1) area_1jet_diff->Draw();
+    // else area_1jet_diff->Draw("SAMES");
     // area_1jet_diff->SetTitle("Area Difference of Single Jet (E-scheme)");
-    area_1jet_diff->SetTitle("Area Difference of Single Jet");
-    area_1jet_diff->GetXaxis()->SetTitle("A_{akt} - A_{njet}");
+    area_1jet_diff->SetTitle("Single Jet Area Diff.");
+    area_1jet_diff->GetXaxis()->SetTitle("A_{akt} - A_{XCone}");
     area_1jet_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // area_1jet_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2194,10 +2377,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  final_drawn_histogram->Draw("SAMES");
   leg_areadiff_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   areadiff_compare_1jet->Write();
-  areadiff_compare_1jet->Print("zprimestudy_test_plots/zprime_areadiff_compare_1jet.eps", "eps");
+  areadiff_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_areadiff_compare_1jet.eps", "eps");
 
 
   TCanvas *areadiff_wta_compare_1jet = new TCanvas("areadiff_wta_compare_1jet", "areadiff_wta_compare_1jet", 800, 800);
@@ -2225,7 +2410,7 @@ int main(int argc, char* argv[]) {
     if (B == 0) area_1jet_diff_wta->Draw();
     else area_1jet_diff_wta->Draw("SAMES");
     area_1jet_diff_wta->SetTitle("Area Difference of Single Jet (WTA)");
-    area_1jet_diff_wta->GetXaxis()->SetTitle("A_{akt} - A_{njet}");
+    area_1jet_diff_wta->GetXaxis()->SetTitle("A_{akt} - A_{XCone}");
     area_1jet_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // area_1jet_diff_wta->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2238,8 +2423,9 @@ int main(int argc, char* argv[]) {
 
   leg_areadiff_wta_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   areadiff_wta_compare_1jet->Write();
-  areadiff_wta_compare_1jet->Print("zprimestudy_test_plots/zprime_areadiff_wta_compare_1jet.eps", "eps");
+  areadiff_wta_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_areadiff_wta_compare_1jet.eps", "eps");
 
 
 
@@ -2247,9 +2433,11 @@ int main(int argc, char* argv[]) {
   areadiff_compare_3jet->cd();
   areadiff_compare_3jet->SetLogy();
   double max_val_areadiff_3jet = 0;
-  TLegend *leg_areadiff_3jet = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_areadiff_3jet = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_areadiff_3jet->SetFillColor(kWhite);
   leg_areadiff_3jet->SetLineColor(kWhite);
+  leg_areadiff_3jet->SetFillStyle(0);
+  leg_areadiff_3jet->SetTextSize(0.09);
 
   for (int B = 0; B < n_betas; B++) {
 
@@ -2260,16 +2448,18 @@ int main(int argc, char* argv[]) {
     TH1* area_3jet_diff = (TH1*)area_3jet_diff_hists.At(B);
     double area_3jet_diff_scale = 1/area_3jet_diff->Integral(0, area_3jet_diff->GetNbinsX() + 1);
     area_3jet_diff->Scale(area_3jet_diff_scale);
-    if (B == 0) area_3jet_diff->SetLineColor(kRed);
-    if (B == 1) area_3jet_diff->SetLineColor(kBlue);
-    if (B == 2) area_3jet_diff->SetLineColor(kRed);
-    if (B == 3) area_3jet_diff->SetLineColor(kBlue);
+    area_3jet_diff->SetLineColor(colorlist[B]);
+    // if (B == 0) area_3jet_diff->SetLineColor(kRed);
+    // if (B == 1) area_3jet_diff->SetLineColor(kBlue);
+    // if (B == 2) area_3jet_diff->SetLineColor(kRed);
+    // if (B == 3) area_3jet_diff->SetLineColor(kBlue);
 
-    if (B == 0) area_3jet_diff->Draw();
-    else area_3jet_diff->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = area_3jet_diff;
+    if (B == 1) area_3jet_diff->Draw();
+    // else area_3jet_diff->Draw("SAMES");
     // area_3jet_diff->SetTitle("Area Difference of Third Jet (E-scheme)");
-    area_3jet_diff->SetTitle("Area Difference of Third Jet");
-    area_3jet_diff->GetXaxis()->SetTitle("A_{akt} - A_{njet}");
+    area_3jet_diff->SetTitle("Third Jet Area Diff.");
+    area_3jet_diff->GetXaxis()->SetTitle("A_{akt} - A_{XCone}");
     area_3jet_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // area_3jet_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2280,10 +2470,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  final_drawn_histogram->Draw("SAMES");
   leg_areadiff_3jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   areadiff_compare_3jet->Write();
-  areadiff_compare_3jet->Print("zprimestudy_test_plots/zprime_areadiff_compare_3jet.eps", "eps");
+  areadiff_compare_3jet->Print("zprimestudy_onepassXcone_test_plots/zprime_areadiff_compare_3jet.eps", "eps");
 
 
   TCanvas *areadiff_wta_compare_3jet = new TCanvas("areadiff_wta_compare_3jet", "areadiff_wta_compare_3jet", 800, 800);
@@ -2311,7 +2503,7 @@ int main(int argc, char* argv[]) {
     if (B == 0) area_3jet_diff_wta->Draw();
     else area_3jet_diff_wta->Draw("SAMES");
     area_3jet_diff_wta->SetTitle("Area Difference of Third Jet (WTA)");
-    area_3jet_diff_wta->GetXaxis()->SetTitle("A_{akt} - A_{njet}");
+    area_3jet_diff_wta->GetXaxis()->SetTitle("A_{akt} - A_{XCone}");
     area_3jet_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // area_3jet_diff_wta->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2324,8 +2516,9 @@ int main(int argc, char* argv[]) {
 
   leg_areadiff_wta_3jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   areadiff_wta_compare_3jet->Write();
-  areadiff_wta_compare_3jet->Print("zprimestudy_test_plots/zprime_areadiff_wta_compare_3jet.eps", "eps");
+  areadiff_wta_compare_3jet->Print("zprimestudy_onepassXcone_test_plots/zprime_areadiff_wta_compare_3jet.eps", "eps");
 
 
   TCanvas *mass_compare_1jet = new TCanvas("mass_compare_1jet", "mass_compare_1jet", 800, 800);
@@ -2334,7 +2527,8 @@ int main(int argc, char* argv[]) {
   double akt_jet_mass_scale = 1/akt_jet_mass->Integral(0, akt_jet_mass->GetNbinsX() + 1);
   akt_jet_mass->Scale(akt_jet_mass_scale);
   akt_jet_mass->SetLineColor(kBlack);
-  akt_jet_mass->SetTitle("Mass of Single Jet");
+  akt_jet_mass->SetLineStyle(7);
+  akt_jet_mass->SetTitle("Single Jet Mass");
   akt_jet_mass->GetXaxis()->SetTitle("m_{j} (GeV)");
   akt_jet_mass->GetYaxis()->SetTitle("Relative Occurrence");
   // akt_jet_mass->GetYaxis()->SetTitleOffset(1.5);
@@ -2348,10 +2542,9 @@ int main(int argc, char* argv[]) {
 
   akt_jet_mass->Draw();
   // akt_wta_jet_mass->Draw("SAMES");
-  TLegend *leg_mass_1jet = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_mass_1jet = new TLegend(0.45, 0.45, 0.86, 0.86);
   leg_mass_1jet->SetFillColor(kWhite);
   leg_mass_1jet->SetLineColor(kWhite);
-  leg_mass_1jet->AddEntry(akt_jet_mass, "ak_{T}", "L");
   // leg_mass_1jet->AddEntry(akt_jet_mass, "ak_{T} (E-scheme)", "L");
   // leg_mass_1jet->AddEntry(akt_wta_jet_mass, "ak_{T} (WTA)", "L");
 
@@ -2363,29 +2556,36 @@ int main(int argc, char* argv[]) {
     TH1* njet_jet_mass = (TH1*)njet_jet_mass_hists.At(B);
     double njet_jet_mass_scale = 1/njet_jet_mass->Integral(0, njet_jet_mass->GetNbinsX() + 1);
     njet_jet_mass->Scale(njet_jet_mass_scale);
-    if (B == 0) njet_jet_mass->SetLineColor(kRed);
-    if (B == 1) njet_jet_mass->SetLineColor(kBlue);
-    if (B == 2) njet_jet_mass->SetLineColor(kRed);
-    if (B == 3) njet_jet_mass->SetLineColor(kBlue);
-    njet_jet_mass->Draw("SAMES");
+    njet_jet_mass->SetLineColor(colorlist[B]);
+    // if (B == 0) njet_jet_mass->SetLineColor(kRed);
+    // if (B == 1) njet_jet_mass->SetLineColor(kBlue);
+    // if (B == 2) njet_jet_mass->SetLineColor(kRed);
+    // if (B == 3) njet_jet_mass->SetLineColor(kBlue);
+    if (B == 0) final_drawn_histogram = njet_jet_mass;
+    if (B == 1) njet_jet_mass->Draw("SAMES");
     leg_mass_1jet->AddEntry(njet_jet_mass, "#beta = " + (TString)ss.str());
     if (njet_jet_mass->GetMaximum() > max_val_mass) max_val_mass = njet_jet_mass->GetMaximum();
   }
+  leg_mass_1jet->AddEntry(akt_jet_mass, "ak_{T}", "L");
 
+  final_drawn_histogram->Draw("SAMES");
   akt_jet_mass->SetMaximum(1.2*max_val_mass);
   leg_mass_1jet->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  mass_text_right->Draw("SAMES");
   mass_compare_1jet->Write();
-  mass_compare_1jet->Print("zprimestudy_test_plots/zprime_mass_compare_1jet.eps", "eps");
+  mass_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_mass_compare_1jet.eps", "eps");
 
   TCanvas *perp_compare_1jet = new TCanvas("perp_compare_1jet", "perp_compare_1jet", 800, 800);
   perp_compare_1jet->cd();
   double akt_jet_perp_scale = 1/akt_jet_perp->Integral(0, akt_jet_perp->GetNbinsX() + 1);
   akt_jet_perp->Scale(akt_jet_perp_scale);
   akt_jet_perp->SetLineColor(kBlack);
-  akt_jet_perp->SetTitle("p_{T} of Single Jet");
+  akt_jet_perp->SetLineStyle(7);
+  akt_jet_perp->SetTitle("Single Jet p_{T}");
   akt_jet_perp->GetXaxis()->SetTitle("p_{T} (GeV)");
   akt_jet_perp->GetYaxis()->SetTitle("Relative Occurrence");
+  akt_jet_perp->GetXaxis()->SetNdivisions(505);
   // akt_jet_perp->GetYaxis()->SetTitleOffset(1.6);
   akt_jet_perp->SetMinimum(0.0);
   double max_val_perp = akt_jet_perp->GetMaximum();
@@ -2397,11 +2597,12 @@ int main(int argc, char* argv[]) {
 
   akt_jet_perp->Draw();
   // akt_wta_jet_perp->Draw("SAMES");
-  TLegend *leg_perp_1jet = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_perp_1jet = new TLegend(0.6, 0.6, 0.86, 0.86);
   // leg_perp_1jet->SetNColumns(2);
   leg_perp_1jet->SetFillColor(kWhite);
   leg_perp_1jet->SetLineColor(kWhite);
-  leg_perp_1jet->AddEntry(akt_jet_perp, "ak_{T}", "L");
+  leg_perp_1jet->SetFillStyle(0);
+  leg_perp_1jet->SetTextSize(0.09);
   // leg_perp_1jet->AddEntry(akt_jet_perp, "ak_{T} (E-scheme)", "L");
   // leg_perp_1jet->AddEntry(akt_wta_jet_perp, "ak_{T} (WTA)", "L");
 
@@ -2414,20 +2615,34 @@ int main(int argc, char* argv[]) {
     TH1* njet_jet_perp = (TH1*)njet_jet_perp_hists.At(B);
     double njet_jet_perp_scale = 1/njet_jet_perp->Integral(0, njet_jet_perp->GetNbinsX() + 1);
     njet_jet_perp->Scale(njet_jet_perp_scale);
-    if (B == 0) njet_jet_perp->SetLineColor(kRed);
-    if (B == 1) njet_jet_perp->SetLineColor(kBlue);
-    if (B == 2) njet_jet_perp->SetLineColor(kRed);
-    if (B == 3) njet_jet_perp->SetLineColor(kBlue);
-    njet_jet_perp->Draw("SAMES");
+    njet_jet_perp->SetLineColor(colorlist[B]);
+    // if (B == 0) njet_jet_perp->SetLineColor(kRed);
+    // if (B == 1) njet_jet_perp->SetLineColor(kBlue);
+    // if (B == 2) njet_jet_perp->SetLineColor(kRed);
+    // if (B == 3) njet_jet_perp->SetLineColor(kBlue);
+
+    if (B == 0) final_drawn_histogram = njet_jet_perp;
+    if (B == 1) njet_jet_perp->Draw("SAMES");
     leg_perp_1jet->AddEntry(njet_jet_perp, "#beta = " + (TString)ss.str());
     if (njet_jet_perp->GetMaximum() > max_val_perp) max_val_perp = njet_jet_perp->GetMaximum();
   }
+  leg_perp_1jet->AddEntry(akt_jet_perp, "ak_{T}", "L");
 
-  akt_jet_perp->SetMaximum(1.2*max_val_perp);
+  final_drawn_histogram->Draw("SAMES");
+  akt_jet_perp->SetMaximum(1.4*max_val_perp);
   leg_perp_1jet->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  TPaveText *mass_text_perp = new TPaveText(0.2, 0.72, 0.55, 0.86, "brNDC");
+  mass_text_perp->SetTextFont(132);
+  mass_text_perp->SetTextSize(0.08);
+  mass_text_perp->SetFillColor(kWhite);
+  mass_text_perp->SetLineColor(kWhite);
+  mass_text_perp->SetFillStyle(0);
+  mass_text_perp->AddText("m_{Z'} = 1 TeV");
+  mass_text_perp->Draw("SAMES");
+  // mass_text_left->Draw("SAMES");
   perp_compare_1jet->Write();
-  perp_compare_1jet->Print("zprimestudy_test_plots/zprime_perp_compare_1jet.eps", "eps");
+  perp_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_perp_compare_1jet.eps", "eps");
 
 
   TCanvas *phi_compare_1jet = new TCanvas("phi_compare_1jet", "phi_compare_1jet", 800, 800);
@@ -2452,7 +2667,6 @@ int main(int argc, char* argv[]) {
   TLegend *leg_phi_1jet = new TLegend(0.12, 0.12, 0.35, 0.35);
   leg_phi_1jet->SetFillColor(kWhite);
   leg_phi_1jet->SetLineColor(kWhite);
-  leg_phi_1jet->AddEntry(akt_jet_phi, "ak_{T}", "L");
   // leg_phi_1jet->AddEntry(akt_jet_phi, "ak_{T} (E-scheme)", "L");
   // leg_phi_1jet->AddEntry(akt_wta_jet_phi, "ak_{T} (WTA)", "L");
 
@@ -2473,12 +2687,14 @@ int main(int argc, char* argv[]) {
     leg_phi_1jet->AddEntry(njet_jet_phi, "#beta = " + (TString)ss.str());
     if (njet_jet_phi->GetMaximum() > max_val_phi) max_val_phi = njet_jet_phi->GetMaximum();
   }
+  leg_phi_1jet->AddEntry(akt_jet_phi, "ak_{T}", "L");
 
   akt_jet_phi->SetMaximum(1.1*max_val_phi);
   leg_phi_1jet->Draw("SAMES");
   radius_text_left->Draw("SAMES");
+  mass_text_left->Draw("SAMES");
   phi_compare_1jet->Write();
-  phi_compare_1jet->Print("zprimestudy_test_plots/zprime_phi_compare_1jet.eps", "eps");
+  phi_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_phi_compare_1jet.eps", "eps");
 
   TCanvas *eta_compare_1jet = new TCanvas("eta_compare_1jet", "eta_compare_1jet", 800, 800);
   eta_compare_1jet->cd();
@@ -2499,10 +2715,9 @@ int main(int argc, char* argv[]) {
 
   akt_jet_eta->Draw();
   // akt_wta_jet_eta->Draw("SAMES");
-  TLegend *leg_eta_1jet = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_eta_1jet = new TLegend(0.6, 0.65, 0.88, 0.88);
   leg_eta_1jet->SetFillColor(kWhite);
   leg_eta_1jet->SetLineColor(kWhite);
-  leg_eta_1jet->AddEntry(akt_jet_eta, "ak_{T}", "L");
   // leg_eta_1jet->AddEntry(akt_jet_eta, "ak_{T} (E-scheme)", "L");
   // leg_eta_1jet->AddEntry(akt_wta_jet_eta, "ak_{T} (WTA)", "L");
 
@@ -2523,18 +2738,20 @@ int main(int argc, char* argv[]) {
     leg_eta_1jet->AddEntry(njet_jet_eta, "#beta = " + (TString)ss.str());
     if (njet_jet_eta->GetMaximum() > max_val_eta) max_val_eta = njet_jet_eta->GetMaximum();
   }
+  leg_eta_1jet->AddEntry(akt_jet_eta, "ak_{T}", "L");
 
   akt_jet_eta->SetMaximum(1.2*max_val_eta);
   leg_eta_1jet->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  mass_text_right->Draw("SAMES");
   eta_compare_1jet->Write();
-  eta_compare_1jet->Print("zprimestudy_test_plots/zprime_eta_compare_1jet.eps", "eps");
+  eta_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_eta_compare_1jet.eps", "eps");
 
   TCanvas *massdiff_compare_1jet = new TCanvas("massdiff_compare_1jet", "massdiff_compare_1jet", 800, 800);
   massdiff_compare_1jet->cd();
   massdiff_compare_1jet->SetLogy();
   double max_val_massdiff = 0;
-  TLegend *leg_massdiff_1jet = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_massdiff_1jet = new TLegend(0.6, 0.6, 0.86, 0.86);
   leg_massdiff_1jet->SetFillColor(kWhite);
   leg_massdiff_1jet->SetLineColor(kWhite);
 
@@ -2552,7 +2769,7 @@ int main(int argc, char* argv[]) {
     if (B == 3) jetmass_diff->SetLineColor(kBlue);
     // jetmass_diff->SetTitle("Mass difference of hardest anti-k_{T} (E-scheme) and 1-jettiness jets");
     jetmass_diff->SetTitle("Mass difference of hardest anti-k_{T} and 1-jettiness jets");
-    jetmass_diff->GetXaxis()->SetTitle("m_{akt} - m_{njet}");
+    jetmass_diff->GetXaxis()->SetTitle("m_{akt} - m_{XCone}");
     jetmass_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // jetmass_diff->GetYaxis()->SetTitleOffset(1.5);
     jetmass_diff->Draw("SAMES");
@@ -2565,16 +2782,19 @@ int main(int argc, char* argv[]) {
 
   leg_massdiff_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   massdiff_compare_1jet->Write();
-  massdiff_compare_1jet->Print("zprimestudy_test_plots/zprime_massdiff_compare_1jet.eps", "eps");
+  massdiff_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_massdiff_compare_1jet.eps", "eps");
 
   TCanvas *perpdiff_compare_1jet = new TCanvas("perpdiff_compare_1jet", "perpdiff_compare_1jet", 800, 800);
   perpdiff_compare_1jet->cd();
   perpdiff_compare_1jet->SetLogy();
   double max_val_perpdiff = 0;
-  TLegend *leg_perpdiff_1jet = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_perpdiff_1jet = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_perpdiff_1jet->SetFillColor(kWhite);
   leg_perpdiff_1jet->SetLineColor(kWhite);
+  leg_perpdiff_1jet->SetFillStyle(0);
+  leg_perpdiff_1jet->SetTextSize(0.09);
 
   for (int B = 0; B < betalist.size(); B++) {
     double beta = betalist[B];
@@ -2584,18 +2804,20 @@ int main(int argc, char* argv[]) {
     TH1* jetperp_diff = (TH1*)jetperp_diff_hists.At(B);
     double jetperp_diff_scale = 1/jetperp_diff->Integral(0, jetperp_diff->GetNbinsX() + 1);
     jetperp_diff->Scale(jetperp_diff_scale);
-    if (B == 0) jetperp_diff->SetLineColor(kRed);
-    if (B == 1) jetperp_diff->SetLineColor(kBlue);
-    if (B == 2) jetperp_diff->SetLineColor(kRed);
-    if (B == 3) jetperp_diff->SetLineColor(kBlue);
+    jetperp_diff->SetLineColor(colorlist[B]);
+    // if (B == 0) jetperp_diff->SetLineColor(kRed);
+    // if (B == 1) jetperp_diff->SetLineColor(kBlue);
+    // if (B == 2) jetperp_diff->SetLineColor(kRed);
+    // if (B == 3) jetperp_diff->SetLineColor(kBlue);
     // jetperp_diff->SetTitle("p_{T} Difference of Single Jet (E-scheme)");
-    jetperp_diff->SetTitle("p_{T} Difference of Single Jet");
-    jetperp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet} (GeV)");
+    jetperp_diff->SetTitle("Single Jet p_{T} Diff.");
+    jetperp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, XCone} (GeV)");
     jetperp_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // jetperp_diff->GetYaxis()->SetTitleOffset(1.5);
 
-    if (B == 0) jetperp_diff->Draw();
-    else jetperp_diff->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = jetperp_diff;
+    if (B == 1) jetperp_diff->Draw();
+    // else jetperp_diff->Draw("SAMES");
 
     leg_perpdiff_1jet->AddEntry(jetperp_diff, "#beta = " + (TString)ss.str());
     if (jetperp_diff->GetMaximum() > max_val_perpdiff) {
@@ -2604,10 +2826,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  final_drawn_histogram->Draw("SAMES");
   leg_perpdiff_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   perpdiff_compare_1jet->Write();
-  perpdiff_compare_1jet->Print("zprimestudy_test_plots/zprime_perpdiff_compare_1jet.eps", "eps");
+  perpdiff_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_perpdiff_compare_1jet.eps", "eps");
 
   TCanvas *phidiff_compare_1jet = new TCanvas("phidiff_compare_1jet", "phidiff_compare_1jet", 800, 800);
   phidiff_compare_1jet->cd();
@@ -2631,7 +2855,7 @@ int main(int argc, char* argv[]) {
     if (B == 3) jetphi_diff->SetLineColor(kBlue);
     // jetphi_diff->SetTitle("#phi Difference of Single Jet (E-scheme)");
     jetphi_diff->SetTitle("#phi Difference of Single Jet");
-    jetphi_diff->GetXaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    jetphi_diff->GetXaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     jetphi_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // jetphi_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2646,17 +2870,20 @@ int main(int argc, char* argv[]) {
 
   leg_phidiff_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   phidiff_compare_1jet->Write();
-  phidiff_compare_1jet->Print("zprimestudy_test_plots/zprime_phidiff_compare_1jet.eps", "eps");
+  phidiff_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_compare_1jet.eps", "eps");
 
 
   TCanvas *perp_phidiff_compare_1jet = new TCanvas("perp_phidiff_compare_1jet", "perp_phidiff_compare_1jet", 800, 800);
   perp_phidiff_compare_1jet->cd();
   // perp_phidiff_compare_1jet->SetLogz();
   // double max_val_perp_phidiff = 0;
-  TLegend *leg_perp_phidiff_1jet = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_perp_phidiff_1jet = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_perp_phidiff_1jet->SetFillColor(kWhite);
   leg_perp_phidiff_1jet->SetLineColor(kWhite);
+  leg_perp_phidiff_1jet->SetFillStyle(0);
+  leg_perp_phidiff_1jet->SetTextSize(0.09);
 
   for (int B = 0; B < betalist.size(); B++) {
     double beta = betalist[B];
@@ -2670,8 +2897,8 @@ int main(int argc, char* argv[]) {
         double currentcontent = jetperp_phi_diff->GetCellContent(i,j);
         if (currentcontent == 0) log_currentcontent = 0;
         else log_currentcontent = TMath::Log10(currentcontent);
-        if (B == 0) jetperp_phi_diff->SetCellContent(i, j, log_currentcontent);
-        if (B == 1) jetperp_phi_diff->SetCellContent(i, j, 2*log_currentcontent);
+        if (B == 1) jetperp_phi_diff->SetCellContent(i, j, log_currentcontent);
+        if (B == 0) jetperp_phi_diff->SetCellContent(i, j, 2*log_currentcontent);
       }
     }
 
@@ -2680,34 +2907,40 @@ int main(int argc, char* argv[]) {
     // jetperp_phi_diff->Scale(jetperp_phi_diff_scale);
     // jetperp_phi_diff->SetMarkerStyle(20);
     // jetperp_phi_diff->SetMarkerSize(0.2);
-    if (B == 0) {
-      jetperp_phi_diff->SetFillColor(kRed);
-      jetperp_phi_diff->SetMarkerColor(kRed);
-      jetperp_phi_diff->SetLineColor(kRed);
-    }
-    if (B == 1) {
-      jetperp_phi_diff->SetFillStyle(0);
-      // jetperp_phi_diff->SetLineWidth(2);
-      jetperp_phi_diff->SetFillColor(kBlue);
-      jetperp_phi_diff->SetMarkerColor(kBlue);
-      jetperp_phi_diff->SetLineColor(kBlue);
-    }
-    if (B == 2) {
-      jetperp_phi_diff->SetFillColor(kRed);
-      jetperp_phi_diff->SetMarkerColor(kRed);
-      jetperp_phi_diff->SetLineColor(kRed);
-    }
-    if (B == 3) {
-      jetperp_phi_diff->SetFillColor(kBlue);
-      jetperp_phi_diff->SetMarkerColor(kBlue);
-      jetperp_phi_diff->SetLineColor(kBlue);
-    }
-    jetperp_phi_diff->SetTitle("#Delta p_{T} vs. #Delta #phi");
-    jetperp_phi_diff->GetXaxis()->SetTitle("p_{T,akt} - p_{T,njet}");
-    jetperp_phi_diff->GetYaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
-    jetperp_phi_diff->GetYaxis()->SetTitleOffset(1.0);
 
-    if (B == 0) jetperp_phi_diff->Draw("box");
+    jetperp_phi_diff->SetFillColor(colorlist[B]);
+    jetperp_phi_diff->SetMarkerColor(colorlist[B]);
+    jetperp_phi_diff->SetLineColor(colorlist[B]);
+    // if (B == 0) {
+    //   jetperp_phi_diff->SetFillColor(kRed);
+    //   jetperp_phi_diff->SetMarkerColor(kRed);
+    //   jetperp_phi_diff->SetLineColor(kRed);
+    // }
+    // if (B == 1) {
+    //   jetperp_phi_diff->SetFillStyle(0);
+    //   // jetperp_phi_diff->SetLineWidth(2);
+    //   jetperp_phi_diff->SetFillColor(kBlue);
+    //   jetperp_phi_diff->SetMarkerColor(kBlue);
+    //   jetperp_phi_diff->SetLineColor(kBlue);
+    // }
+    // if (B == 2) {
+    //   jetperp_phi_diff->SetFillColor(kRed);
+    //   jetperp_phi_diff->SetMarkerColor(kRed);
+    //   jetperp_phi_diff->SetLineColor(kRed);
+    // }
+    // if (B == 3) {
+    //   jetperp_phi_diff->SetFillColor(kBlue);
+    //   jetperp_phi_diff->SetMarkerColor(kBlue);
+    //   jetperp_phi_diff->SetLineColor(kBlue);
+    // }
+    jetperp_phi_diff->SetTitle("Single jet #Delta p_{T} vs. #Delta #phi");
+    jetperp_phi_diff->GetXaxis()->SetTitle("p_{T,akt} - p_{T,XCone} (GeV)");
+    jetperp_phi_diff->GetYaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
+    jetperp_phi_diff->GetYaxis()->SetTitleSize(0.09);
+    jetperp_phi_diff->GetYaxis()->SetTitleOffset(0.9);
+
+    if (B == 0) final_drawn_histogram_th2 = jetperp_phi_diff;
+    if (B == 1) jetperp_phi_diff->Draw("box");
     else {
       jetperp_phi_diff->Draw("box SAMES");
       perp_phidiff_compare_1jet->Update();
@@ -2719,10 +2952,12 @@ int main(int argc, char* argv[]) {
     // }
   }
 
+  final_drawn_histogram_th2->Draw("box SAMES");
   leg_perp_phidiff_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   perp_phidiff_compare_1jet->Write();
-  perp_phidiff_compare_1jet->Print("zprimestudy_test_plots/zprime_perp_phidiff_compare_1jet.eps", "eps");
+  perp_phidiff_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_perp_phidiff_compare_1jet.eps", "eps");
 
 
   TCanvas *tau1diff_compare_1jet = new TCanvas("tau1diff_compare_1jet", "tau1diff_compare_1jet", 800, 800);
@@ -2747,7 +2982,7 @@ int main(int argc, char* argv[]) {
     if (B == 3) tau1_diff->SetLineColor(kBlue);
     // tau1_diff->SetTitle("#tau_{1} difference of hardest anti-k_{T} (E-scheme) and 1-jettiness jets");
     tau1_diff->SetTitle("#tau_{1} difference of hardest anti-k_{T} and 1-jettiness jets");
-    tau1_diff->GetXaxis()->SetTitle("#tau_{1}_{akt} - #tau_{1}_{njet}");
+    tau1_diff->GetXaxis()->SetTitle("#tau_{1}_{akt} - #tau_{1}_{XCone}");
     tau1_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // tau1_diff->GetYaxis()->SetTitleOffset(1.5);    tau1_diff->Draw("SAMES");
     leg_tau1diff_1jet->AddEntry(tau1_diff, "#beta = " + (TString)ss.str());
@@ -2759,7 +2994,7 @@ int main(int argc, char* argv[]) {
 
   leg_tau1diff_1jet->Draw("SAMES");
   tau1diff_compare_1jet->Write();
-  tau1diff_compare_1jet->Print("zprimestudy_test_plots/zprime_tau1diff_compare_1jet.eps", "eps");
+  tau1diff_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_tau1diff_compare_1jet.eps", "eps");
 
   TCanvas *massdiff_wta_compare_1jet = new TCanvas("massdiff_wta_compare_1jet", "massdiff_wta_compare_1jet", 800, 800);
   massdiff_wta_compare_1jet->cd();
@@ -2782,7 +3017,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) jetmass_diff_wta->SetLineColor(kRed);
     if (B == 3) jetmass_diff_wta->SetLineColor(kBlue);
     jetmass_diff_wta->SetTitle("Mass Difference of Single Jet (WTA)");
-    jetmass_diff_wta->GetXaxis()->SetTitle("m_{akt} - m_{njet}");
+    jetmass_diff_wta->GetXaxis()->SetTitle("m_{akt} - m_{XCone}");
     jetmass_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // jetmass_diff_wta->GetYaxis()->SetTitleOffset(1.5);
     jetmass_diff_wta->Draw("SAMES");
@@ -2795,8 +3030,9 @@ int main(int argc, char* argv[]) {
 
   leg_massdiff_wta_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   massdiff_wta_compare_1jet->Write();
-  massdiff_wta_compare_1jet->Print("zprimestudy_test_plots/zprime_massdiff_wta_compare_1jet.eps", "eps");
+  massdiff_wta_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_massdiff_wta_compare_1jet.eps", "eps");
 
   TCanvas *perpdiff_wta_compare_1jet = new TCanvas("perpdiff_wta_compare_1jet", "perpdiff_wta_compare_1jet", 800, 800);
   perpdiff_wta_compare_1jet->cd();
@@ -2819,7 +3055,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) jetperp_diff_wta->SetLineColor(kRed);
     if (B == 3) jetperp_diff_wta->SetLineColor(kBlue);
     jetperp_diff_wta->SetTitle("p_{T} Difference of Single Jet (WTA)");
-    jetperp_diff_wta->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet} (GeV)");
+    jetperp_diff_wta->GetXaxis()->SetTitle("p_{T, akt} - p_{T, XCone} (GeV)");
     jetperp_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // jetperp_diff_wta->GetYaxis()->SetTitleOffset(1.5);
 
@@ -2834,8 +3070,9 @@ int main(int argc, char* argv[]) {
 
   leg_perpdiff_wta_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   perpdiff_wta_compare_1jet->Write();
-  perpdiff_wta_compare_1jet->Print("zprimestudy_test_plots/zprime_perpdiff_wta_compare_1jet.eps", "eps");
+  perpdiff_wta_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_perpdiff_wta_compare_1jet.eps", "eps");
 
   TCanvas *phidiff_wta_compare_1jet = new TCanvas("phidiff_wta_compare_1jet", "phidiff_wta_compare_1jet", 800, 800);
   phidiff_wta_compare_1jet->cd();
@@ -2858,7 +3095,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) jetphi_diff_wta->SetLineColor(kRed);
     if (B == 3) jetphi_diff_wta->SetLineColor(kBlue);
     jetphi_diff_wta->SetTitle("#phi Difference of Single Jet (WTA)");
-    jetphi_diff_wta->GetXaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    jetphi_diff_wta->GetXaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     jetphi_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // jetphi_diff_wta->GetYaxis()->SetTitleOffset(1.5);
     if (B == 0) jetphi_diff_wta->Draw();
@@ -2872,8 +3109,9 @@ int main(int argc, char* argv[]) {
 
   leg_phidiff_wta_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   phidiff_wta_compare_1jet->Write();
-  phidiff_wta_compare_1jet->Print("zprimestudy_test_plots/zprime_phidiff_wta_compare_1jet.eps", "eps");
+  phidiff_wta_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_wta_compare_1jet.eps", "eps");
 
   TCanvas *tau1diff_wta_compare_1jet = new TCanvas("tau1diff_wta_compare_1jet", "tau1diff_wta_compare_1jet", 800, 800);
   tau1diff_wta_compare_1jet->cd();
@@ -2894,7 +3132,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) tau1_diff_wta->SetLineColor(kRed);
     if (B == 3) tau1_diff_wta->SetLineColor(kBlue);
     tau1_diff_wta->SetTitle("#tau_{1} difference of hardest anti-k_{T} (WTA) and 1-jettiness jets");
-    tau1_diff_wta->GetXaxis()->SetTitle("#tau_{1}_{akt} - #tau_{1}_{njet}");
+    tau1_diff_wta->GetXaxis()->SetTitle("#tau_{1}_{akt} - #tau_{1}_{XCone}");
     tau1_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // tau1_diff_wta->GetYaxis()->SetTitleOffset(1.5);    tau1_diff_wta->Draw("SAMES");
     leg_tau1diff_wta_1jet->AddEntry(tau1_diff_wta, "#beta = " + (TString)ss.str());
@@ -2906,8 +3144,9 @@ int main(int argc, char* argv[]) {
 
   leg_tau1diff_wta_1jet->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   tau1diff_wta_compare_1jet->Write();
-  tau1diff_wta_compare_1jet->Print("zprimestudy_test_plots/zprime_tau1diff_wta_compare_1jet.eps", "eps");
+  tau1diff_wta_compare_1jet->Print("zprimestudy_onepassXcone_test_plots/zprime_tau1diff_wta_compare_1jet.eps", "eps");
 
   TCanvas *invmass_compare_3jets = new TCanvas("invmass_compare_3jets", "invmass_compare_3jets", 800, 800);
   invmass_compare_3jets->cd();
@@ -2932,7 +3171,6 @@ int main(int argc, char* argv[]) {
   leg_invmass_3jets->SetFillColor(kWhite);
   leg_invmass_3jets->SetLineColor(kWhite);
 
-  leg_invmass_3jets->AddEntry(threejet_invmass_akt, "ak_{T}", "L");
   // leg_invmass_3jets->AddEntry(threejet_invmass_akt, "ak_{T} (E-scheme)", "L");
   // leg_invmass_3jets->AddEntry(threejet_invmass_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -2957,12 +3195,14 @@ int main(int argc, char* argv[]) {
     leg_invmass_3jets->AddEntry(threejet_invmass_njet, "#beta = " + (TString)ss.str());
     if (threejet_invmass_njet->GetMaximum() > max_val_invmass_3jets) max_val_invmass_3jets = threejet_invmass_njet->GetMaximum();
   }
+  leg_invmass_3jets->AddEntry(threejet_invmass_akt, "ak_{T}", "L");
 
   threejet_invmass_akt->SetMaximum(1.2*max_val_invmass_3jets);
   leg_invmass_3jets->Draw("SAMES");
   radius_text_left->Draw("SAMES");
+  mass_text_left->Draw("SAMES");
   invmass_compare_3jets->Write();
-  invmass_compare_3jets->Print("zprimestudy_test_plots/zprime_invmass_compare_3jets.eps", "eps");
+  invmass_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_invmass_compare_3jets.eps", "eps");
 
   // for (int B = 0; B < n_betas; B++) {
   //   cout << (double)threejet_efficiency[B]/twojet_efficiency[B] << endl;
@@ -2974,7 +3214,7 @@ int main(int argc, char* argv[]) {
   double threejet_thirdjet_mass_akt_scale = 1/threejet_thirdjet_mass_akt->Integral(0, threejet_thirdjet_mass_akt->GetNbinsX() + 1);
   threejet_thirdjet_mass_akt->Scale(threejet_thirdjet_mass_akt_scale);
   threejet_thirdjet_mass_akt->SetLineColor(kBlack);
-  threejet_thirdjet_mass_akt->SetTitle("Mass of Third Jet");
+  threejet_thirdjet_mass_akt->SetTitle("Third Jet Mass");
   threejet_thirdjet_mass_akt->GetXaxis()->SetTitle("m_{j} (GeV)");
   threejet_thirdjet_mass_akt->GetYaxis()->SetTitle("Relative Occurrence");
   // threejet_thirdjet_mass_akt->GetYaxis()->SetTitleOffset(1.5);
@@ -2988,10 +3228,9 @@ int main(int argc, char* argv[]) {
 
   threejet_thirdjet_mass_akt->Draw();
   // threejet_thirdjet_mass_akt_wta->Draw("SAMES");
-  TLegend *leg_mass_3jets = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_mass_3jets = new TLegend(0.6, 0.65, 0.88, 0.88);
   leg_mass_3jets->SetFillColor(kWhite);
   leg_mass_3jets->SetLineColor(kWhite);
-  leg_mass_3jets->AddEntry(threejet_thirdjet_mass_akt, "ak_{T}", "L");
   // leg_mass_3jets->AddEntry(threejet_thirdjet_mass_akt, "ak_{T} (E-scheme)", "L");
   // leg_mass_3jets->AddEntry(threejet_thirdjet_mass_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -3011,12 +3250,14 @@ int main(int argc, char* argv[]) {
     leg_mass_3jets->AddEntry(threejet_thirdjet_mass_njet, "#beta = " + (TString)ss.str());
     if (threejet_thirdjet_mass_njet->GetMaximum() > max_val_mass_3jets) max_val_mass_3jets = threejet_thirdjet_mass_njet->GetMaximum();
   }
+  leg_mass_3jets->AddEntry(threejet_thirdjet_mass_akt, "ak_{T}", "L");
 
   threejet_thirdjet_mass_akt->SetMaximum(1.2*max_val_mass_3jets);
   leg_mass_3jets->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  mass_text_right->Draw("SAMES");
   mass_compare_3jets->Write();
-  mass_compare_3jets->Print("zprimestudy_test_plots/zprime_mass_compare_3jets.eps", "eps");
+  mass_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_mass_compare_3jets.eps", "eps");
 
   TCanvas *perp_compare_3jets = new TCanvas("perp_compare_3jets", "perp_compare_3jets", 800, 800);
   perp_compare_3jets->cd();
@@ -3024,9 +3265,11 @@ int main(int argc, char* argv[]) {
   double threejet_thirdjet_perp_akt_scale = 1/threejet_thirdjet_perp_akt->Integral(0, threejet_thirdjet_perp_akt->GetNbinsX() + 1);
   threejet_thirdjet_perp_akt->Scale(threejet_thirdjet_perp_akt_scale);
   threejet_thirdjet_perp_akt->SetLineColor(kBlack);
-  threejet_thirdjet_perp_akt->SetTitle("p_{T} of Third Jet");
+  threejet_thirdjet_perp_akt->SetLineStyle(7);
+  threejet_thirdjet_perp_akt->SetTitle("Third Jet p_{T}");
   threejet_thirdjet_perp_akt->GetXaxis()->SetTitle("p_{T} (GeV)");
   threejet_thirdjet_perp_akt->GetYaxis()->SetTitle("Relative Occurrence");
+  threejet_thirdjet_perp_akt->GetXaxis()->SetNdivisions(505);
   // threejet_thirdjet_perp_akt->GetYaxis()->SetTitleOffset(1.5);
   threejet_thirdjet_perp_akt->SetMinimum(0.0);
   double max_val_perp_3jets = threejet_thirdjet_perp_akt->GetMaximum();
@@ -3038,10 +3281,11 @@ int main(int argc, char* argv[]) {
 
   threejet_thirdjet_perp_akt->Draw();
   // threejet_thirdjet_perp_akt_wta->Draw("SAMES");
-  TLegend *leg_perp_3jets = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_perp_3jets = new TLegend(0.6, 0.6, 0.86, 0.86);
   leg_perp_3jets->SetFillColor(kWhite);
   leg_perp_3jets->SetLineColor(kWhite);
-  leg_perp_3jets->AddEntry(threejet_thirdjet_perp_akt, "ak_{T}", "L");
+  leg_perp_3jets->SetFillStyle(0);
+  leg_perp_3jets->SetTextSize(0.09);
   // leg_perp_3jets->AddEntry(threejet_thirdjet_perp_akt, "ak_{T} (E-scheme)", "L");
   // leg_perp_3jets->AddEntry(threejet_thirdjet_perp_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -3053,20 +3297,26 @@ int main(int argc, char* argv[]) {
     TH1* threejet_thirdjet_perp_njet = (TH1*)threejet_thirdjet_perp_njet_hists.At(B);
     double threejet_thirdjet_perp_njet_scale = 1/threejet_thirdjet_perp_njet->Integral(0, threejet_thirdjet_perp_njet->GetNbinsX() + 1);
     threejet_thirdjet_perp_njet->Scale(threejet_thirdjet_perp_njet_scale);
-    if (B == 0) threejet_thirdjet_perp_njet->SetLineColor(kRed);
-    if (B == 1) threejet_thirdjet_perp_njet->SetLineColor(kBlue);
-    if (B == 2) threejet_thirdjet_perp_njet->SetLineColor(kRed);
-    if (B == 3) threejet_thirdjet_perp_njet->SetLineColor(kBlue);
-    threejet_thirdjet_perp_njet->Draw("SAMES");
+    threejet_thirdjet_perp_njet->SetLineColor(colorlist[B]);
+    // if (B == 0) threejet_thirdjet_perp_njet->SetLineColor(kRed);
+    // if (B == 1) threejet_thirdjet_perp_njet->SetLineColor(kBlue);
+    // if (B == 2) threejet_thirdjet_perp_njet->SetLineColor(kRed);
+    // if (B == 3) threejet_thirdjet_perp_njet->SetLineColor(kBlue);
+
+    if (B == 0) final_drawn_histogram = threejet_thirdjet_perp_njet;
+    if (B == 1) threejet_thirdjet_perp_njet->Draw("SAMES");
     leg_perp_3jets->AddEntry(threejet_thirdjet_perp_njet, "#beta = " + (TString)ss.str());
     if (threejet_thirdjet_perp_njet->GetMaximum() > max_val_perp_3jets) max_val_perp_3jets = threejet_thirdjet_perp_njet->GetMaximum();
   }
+  leg_perp_3jets->AddEntry(threejet_thirdjet_perp_akt, "ak_{T}", "L");
 
-  threejet_thirdjet_perp_akt->SetMaximum(1.2*max_val_perp_3jets);
+  final_drawn_histogram->Draw("SAMES");
+  threejet_thirdjet_perp_akt->SetMaximum(1.4*max_val_perp_3jets);
   leg_perp_3jets->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  mass_text_perp->Draw("SAMES");
   perp_compare_3jets->Write();
-  perp_compare_3jets->Print("zprimestudy_test_plots/zprime_perp_compare_3jets.eps", "eps");
+  perp_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perp_compare_3jets.eps", "eps");
 
   TCanvas *phi_compare_3jets = new TCanvas("phi_compare_3jets", "phi_compare_3jets", 800, 800);
   phi_compare_3jets->cd();
@@ -3091,7 +3341,6 @@ int main(int argc, char* argv[]) {
   TLegend *leg_phi_3jets = new TLegend(0.7, 0.7, 0.88, 0.88);
   leg_phi_3jets->SetFillColor(kWhite);
   leg_phi_3jets->SetLineColor(kWhite);
-  leg_phi_3jets->AddEntry(threejet_thirdjet_phi_akt, "ak_{T}", "L");
   // leg_phi_3jets->AddEntry(threejet_thirdjet_phi_akt, "ak_{T} (E-scheme)", "L");
   // leg_phi_3jets->AddEntry(threejet_thirdjet_phi_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -3111,12 +3360,14 @@ int main(int argc, char* argv[]) {
     leg_phi_3jets->AddEntry(threejet_thirdjet_phi_njet, "#beta = " + (TString)ss.str());
     if (threejet_thirdjet_phi_njet->GetMaximum() > max_val_phi_3jets) max_val_phi_3jets = threejet_thirdjet_phi_njet->GetMaximum();
   }
+  leg_phi_3jets->AddEntry(threejet_thirdjet_phi_akt, "ak_{T}", "L");
 
   threejet_thirdjet_phi_akt->SetMaximum(1.2*max_val_phi_3jets);
   leg_phi_3jets->Draw("SAMES");
   radius_text_right->Draw("SAMES");
+  mass_text_right->Draw("SAMES");
   phi_compare_3jets->Write();
-  phi_compare_3jets->Print("zprimestudy_test_plots/zprime_phi_compare_3jets.eps", "eps");
+  phi_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phi_compare_3jets.eps", "eps");
 
   TCanvas *massdiff_compare_3jets = new TCanvas("massdiff_compare_3jets", "massdiff_compare_3jets", 800, 800);
   massdiff_compare_3jets->cd();
@@ -3139,8 +3390,8 @@ int main(int argc, char* argv[]) {
     if (B == 2) threejet_thirdjet_mass_diff->SetLineColor(kRed);
     if (B == 3) threejet_thirdjet_mass_diff->SetLineColor(kBlue);
     // threejet_thirdjet_mass_diff->SetTitle("Mass Difference of Third Jet (E-scheme)");
-    threejet_thirdjet_mass_diff->SetTitle("Mass Difference of Third Jet");
-    threejet_thirdjet_mass_diff->GetXaxis()->SetTitle("m_{akt} - m_{njet}");
+    threejet_thirdjet_mass_diff->SetTitle("Third Jet Mass Diff.");
+    threejet_thirdjet_mass_diff->GetXaxis()->SetTitle("m_{akt} - m_{XCone}");
     threejet_thirdjet_mass_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // threejet_thirdjet_mass_diff->GetYaxis()->SetTitleOffset(1.5);
     
@@ -3155,16 +3406,19 @@ int main(int argc, char* argv[]) {
 
   leg_massdiff_3jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   massdiff_compare_3jets->Write();
-  massdiff_compare_3jets->Print("zprimestudy_test_plots/zprime_massdiff_compare_3jets.eps", "eps");
+  massdiff_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_massdiff_compare_3jets.eps", "eps");
 
   TCanvas *perpdiff_compare_3jets = new TCanvas("perpdiff_compare_3jets", "perpdiff_compare_3jets", 800, 800);
   perpdiff_compare_3jets->cd();
   perpdiff_compare_3jets->SetLogy();
   double max_val_perpdiff_3jets = 0;
-  TLegend *leg_perpdiff_3jets = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_perpdiff_3jets = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_perpdiff_3jets->SetFillColor(kWhite);
   leg_perpdiff_3jets->SetLineColor(kWhite);
+  leg_perpdiff_3jets->SetFillStyle(0);
+  leg_perpdiff_3jets->SetTextSize(0.09);
 
   for (int B = 0; B < betalist.size(); B++) {
     double beta = betalist[B];
@@ -3174,17 +3428,19 @@ int main(int argc, char* argv[]) {
     TH1* threejet_thirdjet_perp_diff = (TH1*)threejet_thirdjet_perp_diff_hists.At(B);
     double threejet_thirdjet_perp_diff_scale = 1/threejet_thirdjet_perp_diff->Integral(0, threejet_thirdjet_perp_diff->GetNbinsX() + 1);
     threejet_thirdjet_perp_diff->Scale(threejet_thirdjet_perp_diff_scale);
-    if (B == 0) threejet_thirdjet_perp_diff->SetLineColor(kRed);
-    if (B == 1) threejet_thirdjet_perp_diff->SetLineColor(kBlue);
-    if (B == 2) threejet_thirdjet_perp_diff->SetLineColor(kRed);
-    if (B == 3) threejet_thirdjet_perp_diff->SetLineColor(kBlue);
+    threejet_thirdjet_perp_diff->SetLineColor(colorlist[B]);
+    // if (B == 0) threejet_thirdjet_perp_diff->SetLineColor(kRed);
+    // if (B == 1) threejet_thirdjet_perp_diff->SetLineColor(kBlue);
+    // if (B == 2) threejet_thirdjet_perp_diff->SetLineColor(kRed);
+    // if (B == 3) threejet_thirdjet_perp_diff->SetLineColor(kBlue);
     // threejet_thirdjet_perp_diff->SetTitle("p_{T} Difference of Third Jet (E-scheme)");
-    threejet_thirdjet_perp_diff->SetTitle("p_{T} Difference of Third Jet");
-    threejet_thirdjet_perp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet} (GeV)");
+    threejet_thirdjet_perp_diff->SetTitle("Third Jet p_{T} Diff.");
+    threejet_thirdjet_perp_diff->GetXaxis()->SetTitle("p_{T, akt} - p_{T, XCone} (GeV)");
     threejet_thirdjet_perp_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // threejet_thirdjet_perp_diff->GetYaxis()->SetTitleOffset(1.5);
-    if (B == 0) threejet_thirdjet_perp_diff->Draw();
-    else threejet_thirdjet_perp_diff->Draw("SAMES");
+    if (B == 0) final_drawn_histogram = threejet_thirdjet_perp_diff;
+    if (B == 1) threejet_thirdjet_perp_diff->Draw();
+    // else threejet_thirdjet_perp_diff->Draw("SAMES");
     leg_perpdiff_3jets->AddEntry(threejet_thirdjet_perp_diff, "#beta = " + (TString)ss.str());
     if (threejet_thirdjet_perp_diff->GetMaximum() > max_val_perpdiff_3jets) {
       max_val_perpdiff_3jets = threejet_thirdjet_perp_diff->GetMaximum();
@@ -3192,10 +3448,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  final_drawn_histogram->Draw("SAMES");
   leg_perpdiff_3jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   perpdiff_compare_3jets->Write();
-  perpdiff_compare_3jets->Print("zprimestudy_test_plots/zprime_perpdiff_compare_3jets.eps", "eps");
+  perpdiff_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perpdiff_compare_3jets.eps", "eps");
 
   TCanvas *phidiff_compare_3jets = new TCanvas("phidiff_compare_3jets", "phidiff_compare_3jets", 800, 800);
   phidiff_compare_3jets->cd();
@@ -3219,7 +3477,7 @@ int main(int argc, char* argv[]) {
     if (B == 3) threejet_thirdjet_phi_diff->SetLineColor(kBlue);
     // threejet_thirdjet_phi_diff->SetTitle("#phi difference of Third Hardest Jet (E-scheme)");
     threejet_thirdjet_phi_diff->SetTitle("#phi difference of Third Hardest Jet");
-    threejet_thirdjet_phi_diff->GetXaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    threejet_thirdjet_phi_diff->GetXaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     threejet_thirdjet_phi_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // threejet_thirdjet_phi_diff->GetYaxis()->SetTitleOffset(1.5);
 
@@ -3234,16 +3492,19 @@ int main(int argc, char* argv[]) {
 
   leg_phidiff_3jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   phidiff_compare_3jets->Write();
-  phidiff_compare_3jets->Print("zprimestudy_test_plots/zprime_phidiff_compare_3jets.eps", "eps");
+  phidiff_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_compare_3jets.eps", "eps");
 
   TCanvas *perp_phidiff_compare_3jets = new TCanvas("perp_phidiff_compare_3jets", "perp_phidiff_compare_3jets", 800, 800);
   perp_phidiff_compare_3jets->cd();
   // perp_phidiff_compare_3jets->SetLogz();
   double max_val_perp_phidiff_3jets = 0;
-  TLegend *leg_perp_phidiff_3jets = new TLegend(0.7, 0.7, 0.88, 0.88);
+  TLegend *leg_perp_phidiff_3jets = new TLegend(0.6, 0.65, 0.86, 0.86);
   leg_perp_phidiff_3jets->SetFillColor(kWhite);
   leg_perp_phidiff_3jets->SetLineColor(kWhite);
+  leg_perp_phidiff_3jets->SetFillStyle(0);
+  leg_perp_phidiff_3jets->SetTextSize(0.09);
 
   for (int B = 0; B < betalist.size(); B++) {
     double beta = betalist[B];
@@ -3257,8 +3518,8 @@ int main(int argc, char* argv[]) {
         double currentcontent = threejet_thirdjet_perp_phi_diff->GetCellContent(i,j);
         if (currentcontent == 0) log_currentcontent = 0;
         else log_currentcontent = TMath::Log10(currentcontent);
-        if (B == 0) threejet_thirdjet_perp_phi_diff->SetCellContent(i, j, log_currentcontent);
-        if (B == 1) threejet_thirdjet_perp_phi_diff->SetCellContent(i, j, 2*log_currentcontent);
+        if (B == 1) threejet_thirdjet_perp_phi_diff->SetCellContent(i, j, log_currentcontent);
+        if (B == 0) threejet_thirdjet_perp_phi_diff->SetCellContent(i, j, 2*log_currentcontent);
       }
     }
 
@@ -3266,27 +3527,33 @@ int main(int argc, char* argv[]) {
     // threejet_thirdjet_perp_phi_diff->Scale(threejet_thirdjet_perp_phi_diff_scale);
     // threejet_thirdjet_perp_phi_diff->SetMarkerStyle(20);
     // threejet_thirdjet_perp_phi_diff->SetMarkerSize(0.2);
-    if (B == 0) {
-      threejet_thirdjet_perp_phi_diff->SetFillColor(kRed);
-      threejet_thirdjet_perp_phi_diff->SetMarkerColor(kRed);
-      threejet_thirdjet_perp_phi_diff->SetLineColor(kRed);
-    }
-    if (B == 1) {
-      threejet_thirdjet_perp_phi_diff->SetFillStyle(0);
-      // threejet_thirdjet_perp_phi_diff->SetLineWidth(2);
-      threejet_thirdjet_perp_phi_diff->SetFillColor(kBlue);
-      threejet_thirdjet_perp_phi_diff->SetMarkerColor(kBlue);
-      threejet_thirdjet_perp_phi_diff->SetLineColor(kBlue);
-    }
-    if (B == 2) threejet_thirdjet_perp_phi_diff->SetFillColor(kRed);
-    if (B == 3) threejet_thirdjet_perp_phi_diff->SetFillColor(kBlue);
-    threejet_thirdjet_perp_phi_diff->SetTitle("#Delta p_{T} vs. #Delta #phi");
-    threejet_thirdjet_perp_phi_diff->GetXaxis()->SetTitle("p_{T,akt} - p_{T,njet}");
-    threejet_thirdjet_perp_phi_diff->GetYaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
-    threejet_thirdjet_perp_phi_diff->GetYaxis()->SetTitleOffset(1.0);
 
-    if (B == 0) threejet_thirdjet_perp_phi_diff->Draw("box");
-    else threejet_thirdjet_perp_phi_diff->Draw("box SAMES");
+    threejet_thirdjet_perp_phi_diff->SetFillColor(colorlist[B]);
+    threejet_thirdjet_perp_phi_diff->SetMarkerColor(colorlist[B]);
+    threejet_thirdjet_perp_phi_diff->SetLineColor(colorlist[B]);
+    // if (B == 0) {
+    //   threejet_thirdjet_perp_phi_diff->SetFillColor(kRed);
+    //   threejet_thirdjet_perp_phi_diff->SetMarkerColor(kRed);
+    //   threejet_thirdjet_perp_phi_diff->SetLineColor(kRed);
+    // }
+    // if (B == 1) {
+    //   threejet_thirdjet_perp_phi_diff->SetFillStyle(0);
+    //   // threejet_thirdjet_perp_phi_diff->SetLineWidth(2);
+    //   threejet_thirdjet_perp_phi_diff->SetFillColor(kBlue);
+    //   threejet_thirdjet_perp_phi_diff->SetMarkerColor(kBlue);
+    //   threejet_thirdjet_perp_phi_diff->SetLineColor(kBlue);
+    // }
+    // if (B == 2) threejet_thirdjet_perp_phi_diff->SetFillColor(kRed);
+    // if (B == 3) threejet_thirdjet_perp_phi_diff->SetFillColor(kBlue);
+    threejet_thirdjet_perp_phi_diff->SetTitle("Third Jet #Delta p_{T} vs. #Delta #phi");
+    threejet_thirdjet_perp_phi_diff->GetXaxis()->SetTitle("p_{T,akt} - p_{T,XCone}");
+    threejet_thirdjet_perp_phi_diff->GetYaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
+    threejet_thirdjet_perp_phi_diff->GetYaxis()->SetTitleSize(0.09);
+    threejet_thirdjet_perp_phi_diff->GetYaxis()->SetTitleOffset(0.9);
+
+    if (B == 0) final_drawn_histogram_th2 = threejet_thirdjet_perp_phi_diff;
+    if (B == 1) threejet_thirdjet_perp_phi_diff->Draw("box");
+    // else threejet_thirdjet_perp_phi_diff->Draw("box SAMES");
     leg_perp_phidiff_3jets->AddEntry(threejet_thirdjet_perp_phi_diff, "#beta = " + (TString)ss.str(), "L");
     if (threejet_thirdjet_perp_phi_diff->GetMaximum() > max_val_perp_phidiff_3jets) {
       max_val_perp_phidiff_3jets = threejet_thirdjet_perp_phi_diff->GetMaximum();
@@ -3294,10 +3561,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  final_drawn_histogram_th2->Draw("box SAMES");
   leg_perp_phidiff_3jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  // mass_text_right_diff->Draw("SAMES");
   perp_phidiff_compare_3jets->Write();
-  perp_phidiff_compare_3jets->Print("zprimestudy_test_plots/zprime_perp_phidiff_compare_3jets.eps", "eps");
+  perp_phidiff_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perp_phidiff_compare_3jets.eps", "eps");
 
 
   TCanvas *mainjet_phidiff_compare_3jets = new TCanvas("mainjet_phidiff_compare_3jets", "mainjet_phidiff_compare_3jets", 800, 800);
@@ -3306,8 +3575,9 @@ int main(int argc, char* argv[]) {
   double threejet_thirdjet_mainjet_phi_diff_akt_scale = 1/threejet_thirdjet_mainjet_phi_diff_akt->Integral(0, threejet_thirdjet_mainjet_phi_diff_akt->GetNbinsX() + 1);
   threejet_thirdjet_mainjet_phi_diff_akt->Scale(threejet_thirdjet_mainjet_phi_diff_akt_scale);
   threejet_thirdjet_mainjet_phi_diff_akt->SetLineColor(kBlack);
-  threejet_thirdjet_mainjet_phi_diff_akt->SetTitle("#Delta #phi b/w Third Jet and Closest Dijet");
-  threejet_thirdjet_mainjet_phi_diff_akt->GetXaxis()->SetTitle("#Delta #phi");
+  threejet_thirdjet_mainjet_phi_diff_akt->SetLineStyle(7);
+  threejet_thirdjet_mainjet_phi_diff_akt->SetTitle("Third Jet/Closest Jet #Delta R");
+  threejet_thirdjet_mainjet_phi_diff_akt->GetXaxis()->SetTitle("#Delta R");
   threejet_thirdjet_mainjet_phi_diff_akt->GetYaxis()->SetTitle("Relative Occurrence");
   // threejet_thirdjet_mainjet_phi_diff_akt->GetYaxis()->SetTitleOffset(1.5);
   threejet_thirdjet_mainjet_phi_diff_akt->SetMinimum(0.0);
@@ -3315,10 +3585,12 @@ int main(int argc, char* argv[]) {
 
   threejet_thirdjet_mainjet_phi_diff_akt->Draw();
   // threejet_thirdjet_mainjet_phi_diff_akt_wta->Draw("SAMES");
-  TLegend *leg_mainjet_phidiff_3jets = new TLegend(0.65, 0.65, 0.88, 0.88);
+  TLegend *leg_mainjet_phidiff_3jets = new TLegend(0.6, 0.6, 0.86, 0.86);
   leg_mainjet_phidiff_3jets->SetFillColor(kWhite);
   leg_mainjet_phidiff_3jets->SetLineColor(kWhite);
-  leg_mainjet_phidiff_3jets->AddEntry(threejet_thirdjet_mainjet_phi_diff_akt, "ak_{T}", "L");
+  leg_mainjet_phidiff_3jets->SetFillStyle(0);
+  leg_mainjet_phidiff_3jets->SetBorderSize(0);
+  leg_mainjet_phidiff_3jets->SetTextSize(0.09);
   // leg_mainjet_phidiff_3jets->AddEntry(threejet_thirdjet_mainjet_phi_diff_akt, "ak_{T} (E-scheme)", "L");
   // leg_mainjet_phidiff_3jets->AddEntry(threejet_thirdjet_mainjet_phi_diff_akt_wta, "ak_{T} (WTA)", "L");
 
@@ -3330,20 +3602,45 @@ int main(int argc, char* argv[]) {
     TH1* threejet_thirdjet_mainjet_phi_diff_njet = (TH1*)threejet_thirdjet_mainjet_phi_diff_hists.At(B);
     double threejet_thirdjet_mainjet_phi_diff_njet_scale = 1/threejet_thirdjet_mainjet_phi_diff_njet->Integral(0, threejet_thirdjet_mainjet_phi_diff_njet->GetNbinsX() + 1);
     threejet_thirdjet_mainjet_phi_diff_njet->Scale(threejet_thirdjet_mainjet_phi_diff_njet_scale);
-    if (B == 0) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kRed);
-    if (B == 1) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kBlue);
-    if (B == 2) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kRed);
-    if (B == 3) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kBlue);
-    threejet_thirdjet_mainjet_phi_diff_njet->Draw("SAMES");
+    threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(colorlist[B]);
+    // if (B == 0) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kRed);
+    // if (B == 1) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kBlue);
+    // if (B == 2) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kRed);
+    // if (B == 3) threejet_thirdjet_mainjet_phi_diff_njet->SetLineColor(kBlue);
+
+    if (B == 0) final_drawn_histogram = threejet_thirdjet_mainjet_phi_diff_njet;
+    if (B == 1) threejet_thirdjet_mainjet_phi_diff_njet->Draw("SAMES");
     leg_mainjet_phidiff_3jets->AddEntry(threejet_thirdjet_mainjet_phi_diff_njet, "#beta = " + (TString)ss.str());
     if (threejet_thirdjet_mainjet_phi_diff_njet->GetMaximum() > max_val_mainjet_phidiff_3jets) max_val_mainjet_phidiff_3jets = threejet_thirdjet_mainjet_phi_diff_njet->GetMaximum();
   }
+  leg_mainjet_phidiff_3jets->AddEntry(threejet_thirdjet_mainjet_phi_diff_akt, "ak_{T}", "L");
 
-  threejet_thirdjet_mainjet_phi_diff_akt->SetMaximum(1.2*max_val_mainjet_phidiff_3jets);
+  final_drawn_histogram->Draw("SAMES");
+  threejet_thirdjet_mainjet_phi_diff_akt->SetMaximum(1.5*max_val_mainjet_phidiff_3jets);
   leg_mainjet_phidiff_3jets->Draw("SAMES");
-  radius_text_right->Draw("SAMES");
+
+  TPaveText *radius_text_mainjet = new TPaveText(0.35, 0.75, 0.5, 0.86, "brNDC");
+  radius_text_mainjet->SetTextFont(132);
+  radius_text_mainjet->SetTextSize(0.08);
+  radius_text_mainjet->SetFillColor(kWhite);
+  radius_text_mainjet->SetLineColor(kWhite);
+  radius_text_mainjet->SetFillStyle(0);
+  radius_text_mainjet->SetBorderSize(0);
+  radius_text_mainjet->AddText("R = 0.5");
+  radius_text_mainjet->Draw("SAMES");
+
+  TLine *radius_line = new TLine();
+  radius_line->SetX1(Rparam);
+  radius_line->SetVertical(true);
+  radius_line->SetY1(0);
+  radius_line->SetY2(1.5*max_val_mainjet_phidiff_3jets);
+  radius_line->SetLineColor(kRed);
+  radius_line->SetLineWidth(3);
+  radius_line->SetLineStyle(7);
+  radius_line->Draw();
+
   mainjet_phidiff_compare_3jets->Write();
-  mainjet_phidiff_compare_3jets->Print("zprimestudy_test_plots/zprime_mainjet_phidiff_compare_3jets.eps", "eps");
+  mainjet_phidiff_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_mainjet_phidiff_compare_3jets.eps", "eps");
 
 
   TCanvas *tau3diff_compare_3jets = new TCanvas("tau3diff_compare_3jets", "tau3diff_compare_3jets", 800, 800);
@@ -3369,7 +3666,7 @@ int main(int argc, char* argv[]) {
     if (B == 3) tau3_diff->SetLineColor(kBlue);
     // tau3_diff->SetTitle("#tau_{3} difference of 3 hardest anti-k_{T} (E-scheme) and 3-jettiness jets");
     tau3_diff->SetTitle("#tau_{3} difference of 3 hardest anti-k_{T} and 3-jettiness jets");
-    tau3_diff->GetXaxis()->SetTitle("#tau_{3}_{akt} - #tau_{3}_{njet}");
+    tau3_diff->GetXaxis()->SetTitle("#tau_{3}_{akt} - #tau_{3}_{XCone}");
     tau3_diff->GetYaxis()->SetTitle("Relative Occurrence");
     // tau3_diff->GetYaxis()->SetTitleOffset(1.5);    tau3_diff->Draw("SAMES");
     leg_tau3diff_3jets->AddEntry(tau3_diff, "#beta = " + (TString)ss.str());
@@ -3381,8 +3678,9 @@ int main(int argc, char* argv[]) {
 
   leg_tau3diff_3jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   tau3diff_compare_3jets->Write();
-  tau3diff_compare_3jets->Print("zprimestudy_test_plots/zprime_tau3diff_compare_3jets.eps", "eps");
+  tau3diff_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_tau3diff_compare_3jets.eps", "eps");
 
 
   TCanvas *massdiff_wta_compare_3jets = new TCanvas("massdiff_wta_compare_3jets", "massdiff_wta_compare_3jets", 800, 800);
@@ -3404,7 +3702,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) threejet_thirdjet_mass_diff_wta->SetLineColor(kRed);
     if (B == 3) threejet_thirdjet_mass_diff_wta->SetLineColor(kBlue);
     threejet_thirdjet_mass_diff_wta->SetTitle("Mass Difference of Third Jet (WTA)");
-    threejet_thirdjet_mass_diff_wta->GetXaxis()->SetTitle("m_{akt} - m_{njet}");
+    threejet_thirdjet_mass_diff_wta->GetXaxis()->SetTitle("m_{akt} - m_{XCone}");
     threejet_thirdjet_mass_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // threejet_thirdjet_mass_diff_wta->GetYaxis()->SetTitleOffset(1.5);
     threejet_thirdjet_mass_diff_wta->Draw("SAMES");
@@ -3417,8 +3715,9 @@ int main(int argc, char* argv[]) {
 
   leg_massdiff_wta_3jets->Draw("SAMES");
   radius_text_right_diff->Draw("SAMES");
+  mass_text_right_diff->Draw("SAMES");
   massdiff_wta_compare_3jets->Write();
-  massdiff_wta_compare_3jets->Print("zprimestudy_test_plots/zprime_massdiff_wta_compare_3jets.eps", "eps");
+  massdiff_wta_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_massdiff_wta_compare_3jets.eps", "eps");
 
   TCanvas *perpdiff_wta_compare_3jets = new TCanvas("perpdiff_wta_compare_3jets", "perpdiff_wta_compare_3jets", 800, 800);
   perpdiff_wta_compare_3jets->cd();
@@ -3441,7 +3740,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) threejet_thirdjet_perp_diff_wta->SetLineColor(kRed);
     if (B == 3) threejet_thirdjet_perp_diff_wta->SetLineColor(kBlue);
     threejet_thirdjet_perp_diff_wta->SetTitle("p_{T} Difference of Third Jet (WTA)");
-    threejet_thirdjet_perp_diff_wta->GetXaxis()->SetTitle("p_{T, akt} - p_{T, njet} (GeV)");
+    threejet_thirdjet_perp_diff_wta->GetXaxis()->SetTitle("p_{T, akt} - p_{T, XCone} (GeV)");
     threejet_thirdjet_perp_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // threejet_thirdjet_perp_diff_wta->GetYaxis()->SetTitleOffset(1.5);
     if (B == 0) threejet_thirdjet_perp_diff_wta->Draw();
@@ -3455,7 +3754,7 @@ int main(int argc, char* argv[]) {
 
   leg_perpdiff_wta_3jets->Draw("SAMES");
   perpdiff_wta_compare_3jets->Write();
-  perpdiff_wta_compare_3jets->Print("zprimestudy_test_plots/zprime_perpdiff_wta_compare_3jets.eps", "eps");
+  perpdiff_wta_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_perpdiff_wta_compare_3jets.eps", "eps");
 
   TCanvas *phidiff_wta_compare_3jets = new TCanvas("phidiff_wta_compare_3jets", "phidiff_wta_compare_3jets", 800, 800);
   phidiff_wta_compare_3jets->cd();
@@ -3478,7 +3777,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) threejet_thirdjet_phi_diff_wta->SetLineColor(kRed);
     if (B == 3) threejet_thirdjet_phi_diff_wta->SetLineColor(kBlue);
     threejet_thirdjet_phi_diff_wta->SetTitle("#phi Difference of Third Jet (WTA)");
-    threejet_thirdjet_phi_diff_wta->GetXaxis()->SetTitle("#phi_{akt} - #phi_{njet}");
+    threejet_thirdjet_phi_diff_wta->GetXaxis()->SetTitle("#phi_{akt} - #phi_{XCone}");
     threejet_thirdjet_phi_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // threejet_thirdjet_phi_diff_wta->GetYaxis()->SetTitleOffset(1.5);
     if (B == 0) threejet_thirdjet_phi_diff_wta->Draw();
@@ -3492,7 +3791,7 @@ int main(int argc, char* argv[]) {
 
   leg_phidiff_wta_3jets->Draw("SAMES");
   phidiff_wta_compare_3jets->Write();
-  phidiff_wta_compare_3jets->Print("zprimestudy_test_plots/zprime_phidiff_wta_compare_3jets.eps", "eps");
+  phidiff_wta_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_phidiff_wta_compare_3jets.eps", "eps");
 
   TCanvas *tau3diff_wta_compare_3jets = new TCanvas("tau3diff_wta_compare_3jets", "tau3diff_wta_compare_3jets", 800, 800);
   tau3diff_wta_compare_3jets->cd();
@@ -3513,7 +3812,7 @@ int main(int argc, char* argv[]) {
     if (B == 2) tau3_diff_wta->SetLineColor(kRed);
     if (B == 3) tau3_diff_wta->SetLineColor(kBlue);
     tau3_diff_wta->SetTitle("#tau_{3} difference of hardest anti-k_{T} (WTA) and 3-jettiness jet");
-    tau3_diff_wta->GetXaxis()->SetTitle("#tau_{3}_{akt} - #tau_{3}_{njet}");
+    tau3_diff_wta->GetXaxis()->SetTitle("#tau_{3}_{akt} - #tau_{3}_{XCone}");
     tau3_diff_wta->GetYaxis()->SetTitle("Relative Occurrence");
     // tau3_diff_wta->GetYaxis()->SetTitleOffset(1.5);
     tau3_diff_wta->Draw("SAMES");
@@ -3526,7 +3825,7 @@ int main(int argc, char* argv[]) {
 
   leg_tau3diff_wta_3jets->Draw("SAMES");
   tau3diff_wta_compare_3jets->Write();
-  tau3diff_wta_compare_3jets->Print("zprimestudy_test_plots/zprime_tau3diff_wta_compare_3jets.eps", "eps");
+  tau3diff_wta_compare_3jets->Print("zprimestudy_onepassXcone_test_plots/zprime_tau3diff_wta_compare_3jets.eps", "eps");
 
 
 
